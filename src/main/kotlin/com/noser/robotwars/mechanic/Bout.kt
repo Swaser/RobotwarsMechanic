@@ -4,7 +4,7 @@ import kotlin.random.Random
 
 class Bout(
     private val competitors: (Player) -> Competitor,
-    private val decoupler: Decoupler,
+    private val decouplerFactory: () -> Decoupler<Unit>,
     @Volatile
     var state: BoutState = BoutState.REGISTERED
 ) {
@@ -55,18 +55,18 @@ class Bout(
     private fun conductBout(tournament: Tournament) {
 
         when (state) {
-            BoutState.REGISTERED -> decoupler
-                .decouple {
+            BoutState.REGISTERED -> decouplerFactory()
+                .later {
                     start(16, 10)
-                }.whenDone { conductBout(tournament) }
+                }.later { conductBout(tournament) }
 
-            BoutState.STARTED -> decoupler
-                .decouple {
+            BoutState.STARTED -> decouplerFactory()
+                .later {
                     nextMove()
-                }.whenDone { conductBout(tournament) }
+                }.later { conductBout(tournament) }
 
-            else -> decoupler
-                .decouple {
+            else -> decouplerFactory()
+                .later {
                     publishResult(tournament)
                 }
         }
@@ -101,7 +101,6 @@ class Bout(
             }
         }
     }
-
 
     private fun createFreshTerrain(
         arenaSize: Int,

@@ -1,12 +1,9 @@
 package com.noser.robotwars.mechanic
 
-interface Decoupler {
 
-    fun decouple(job: () -> Unit) : Decoupled
-}
+interface Decoupler<U> {
 
-interface Decoupled {
+    fun <V> later(job: (U) -> V): Decoupler<V>
 
-    fun whenDone(job : () -> Unit)
 }
 

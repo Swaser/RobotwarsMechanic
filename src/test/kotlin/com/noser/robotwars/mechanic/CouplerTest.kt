@@ -21,11 +21,11 @@ class CouplerTest {
 
     private fun conduct(i: Int) {
 
-        if (i >= 0) ExcutorDecoupler
-            .decouple {
-                a = i
-            }.whenDone { conduct(i - 1) }
-
+        if (i >= 0)
+            ExcutorDecoupler
+                .some(Unit)
+                .later { a = i }
+                .later { conduct(i - 1) }
     }
 
 }
