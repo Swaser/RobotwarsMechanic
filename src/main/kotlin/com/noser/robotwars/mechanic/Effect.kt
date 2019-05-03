@@ -1,12 +1,12 @@
 package com.noser.robotwars.mechanic
 
-abstract class Effect {
+sealed class Effect {
 
-    private class None : Effect()
+    class Fire : Effect()
 
-    private class Fire : Effect()
+    class Burnable : Effect()
 
-    private class Energy(val amount : Int) : Effect() {
+    class Energy(val amount : Int) : Effect() {
 
         init {
             check(amount > 0) {

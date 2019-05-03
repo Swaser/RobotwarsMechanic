@@ -6,5 +6,4 @@ enum class Terrain(val movementCost : Int,
     GREEN(1, true),
     WATER(2, false),
     ROCK(100, false);
-
 }
