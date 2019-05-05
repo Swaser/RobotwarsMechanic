@@ -1,4 +1,4 @@
-package com.noser.robotwars.mechanic
+package com.noser.robotwars.mechanic.bout
 
 
 /**
@@ -26,7 +26,7 @@ private constructor(
 
     fun mapOne(position : Position, f : (V) -> V) : Grid<V> =
             mapAll { r, c, v ->
-                if (Position(r,c) == position) f(v) else v
+                if (Position(r, c) == position) f(v) else v
             }
 
     fun <T> mapAll(f: (Int, Int, V) -> T): Grid<T> =

@@ -1,5 +1,8 @@
-package com.noser.robotwars.mechanic
+package com.noser.robotwars.mechanic.bout
 
+import com.noser.robotwars.mechanic.Async
+import com.noser.robotwars.mechanic.tournament.Competitor
+import com.noser.robotwars.mechanic.tournament.Tournament
 import kotlin.random.Random
 
 class Bout(
@@ -32,7 +35,11 @@ class Bout(
             Player.YELLOW,
             { player ->
                 when (player) {
-                    Player.YELLOW -> Robot(player, yellowPos, startingEnergy)
+                    Player.YELLOW -> Robot(
+                        player,
+                        yellowPos,
+                        startingEnergy
+                    )
                     else -> Robot(player, bluePos, startingEnergy)
                 }
             },

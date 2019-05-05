@@ -1,4 +1,4 @@
-package com.noser.robotwars.mechanic
+package com.noser.robotwars.mechanic.tournament
 
 class Tournament(
     val competitors: List<Competitor>,

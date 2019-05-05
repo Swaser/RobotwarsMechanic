@@ -1,4 +1,4 @@
-package com.noser.robotwars.mechanic
+package com.noser.robotwars.mechanic.bout
 
 data class Arena(
     val activePlayer: Player,
