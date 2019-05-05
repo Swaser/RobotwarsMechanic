@@ -20,7 +20,11 @@ private constructor(private val cf: CompletableFuture<U>) : Async<U> {
 
     override fun <V> flatMap(f: (U) -> Async<V>): Async<V> {
 
-        return ExcutorAsync(cf.thenCompose { someU -> (f(someU) as ExcutorAsync<V>).cf })
+        val resCf = CompletableFuture<V>()
+
+        forEach { someU -> f(someU).forEach { resCf.complete(it) } }
+
+        return ExcutorAsync(resCf)
     }
 
     companion object {
