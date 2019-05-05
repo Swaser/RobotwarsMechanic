@@ -6,20 +6,29 @@ import java.util.concurrent.Executors
 import java.util.function.Function
 import java.util.function.Supplier
 
-class ExcutorDecoupler<U>
-private constructor(private val cf: CompletableFuture<U>) : Decoupler<U> {
+class ExcutorAsync<U>
+private constructor(private val cf: CompletableFuture<U>) : Async<U> {
 
-    override fun <V> later(job: (U) -> V): Decoupler<V> {
+    override fun forEach(f: (U) -> Unit) {
+        cf.thenAccept(f)
+    }
 
-        return ExcutorDecoupler(cf.thenApplyAsync(Function { someU -> job(someU) }, executors))
+    override fun <V> map(f: (U) -> V): Async<V> {
+
+        return ExcutorAsync(cf.thenApplyAsync(Function { someU -> f(someU) }, executors))
+    }
+
+    override fun <V> flatMap(f: (U) -> Async<V>): Async<V> {
+
+        return ExcutorAsync(cf.thenCompose { someU -> (f(someU) as ExcutorAsync<V>).cf })
     }
 
     companion object {
 
-        fun <U> some(someU: U): Decoupler<U> = ExcutorDecoupler(CompletableFuture.completedFuture(someU))
+        fun <U> some(someU: U): Async<U> = ExcutorAsync(CompletableFuture.completedFuture(someU))
 
-        fun <U> supply(job: () -> U): Decoupler<U> =
-            ExcutorDecoupler(CompletableFuture.supplyAsync(Supplier(job), executors))
+        fun <U> supply(job: () -> U): Async<U> =
+            ExcutorAsync(CompletableFuture.supplyAsync(Supplier(job), executors))
 
         private val executors: Executor = Executors.newCachedThreadPool {
             Thread(it).apply {

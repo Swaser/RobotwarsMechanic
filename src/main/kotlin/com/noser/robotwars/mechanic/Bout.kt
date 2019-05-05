@@ -4,9 +4,7 @@ import kotlin.random.Random
 
 class Bout(
     private val competitors: (Player) -> Competitor,
-    private val decouplerFactory: () -> Decoupler<Unit>,
-    @Volatile
-    var state: BoutState = BoutState.REGISTERED
+    @Volatile var state: BoutState = BoutState.REGISTERED
 ) {
 
     @Volatile
@@ -52,23 +50,30 @@ class Bout(
         state = BoutState.STARTED
     }
 
-    private fun conductBout(tournament: Tournament) {
+    private fun conductBout(
+        asyncProvider: (() -> Unit) -> Async<Unit>,
+        tournament: Tournament
+    ) {
 
         when (state) {
-            BoutState.REGISTERED -> decouplerFactory()
-                .later {
-                    start(16, 10)
-                }.later { conductBout(tournament) }
 
-            BoutState.STARTED -> decouplerFactory()
-                .later {
-                    nextMove()
-                }.later { conductBout(tournament) }
-
-            else -> decouplerFactory()
-                .later {
-                    publishResult(tournament)
+            BoutState.REGISTERED ->
+                asyncProvider {
+                    start(tournament.arenaSize, tournament.startingEnergy)
+                }.map {
+                    conductBout(asyncProvider, tournament)
                 }
+
+            BoutState.STARTED ->
+                asyncProvider {
+                    nextMove()
+                }.map {
+                    conductBout(asyncProvider, tournament)
+                }
+
+            else -> asyncProvider {
+                publishResult(tournament)
+            }
         }
     }
 

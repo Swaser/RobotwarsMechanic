@@ -22,10 +22,10 @@ class CouplerTest {
     private fun conduct(i: Int) {
 
         if (i >= 0)
-            ExcutorDecoupler
+            ExcutorAsync
                 .some(Unit)
-                .later { a = i }
-                .later { conduct(i - 1) }
+                .map { a = i }
+                .map { conduct(i - 1) }
     }
 
 }
