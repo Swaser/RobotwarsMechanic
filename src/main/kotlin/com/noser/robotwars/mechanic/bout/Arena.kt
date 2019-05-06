@@ -2,7 +2,7 @@ package com.noser.robotwars.mechanic.bout
 
 data class Arena(
     val activePlayer: Player,
-    val robots: (Player) -> Robot,
+    val robots: List<Robot>,
     val terrain: Grid<Terrain>,
     val effects: Grid<List<Effect>>
 ) {

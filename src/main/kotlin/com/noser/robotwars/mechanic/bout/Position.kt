@@ -8,7 +8,7 @@ data class Position(
 ) {
 
     companion object {
-        fun random(n: Int, random: Random) =
-            Position(random.nextInt(n), random.nextInt(n))
+        fun random(rows: Int, cols: Int, random: Random) =
+            Position(random.nextInt(rows), random.nextInt(cols))
     }
 }

@@ -7,6 +7,7 @@ import kotlin.random.Random
 
 class Bout(
     private val competitors: (Player) -> Competitor,
+    private val tournament: Tournament,
     @Volatile var state: BoutState = BoutState.REGISTERED
 ) {
 
@@ -23,26 +24,21 @@ class Bout(
         startingEnergy: Int
     ) {
         val random = Random(System.currentTimeMillis())
-        val yellowPos = Position.random(arenaSize, random)
-        var bluePos: Position
-        do {
-            bluePos = Position.random(arenaSize, random)
-        } while (bluePos == yellowPos)
-
         val terrain = createFreshTerrain(arenaSize, random)
 
         arena = Arena(
             Player.YELLOW,
-            { player ->
-                when (player) {
-                    Player.YELLOW -> Robot(
+            Player.values()
+                .fold(mutableListOf()) { list, player ->
+                    val robot = Robot(
                         player,
-                        yellowPos,
+                        createUniqePosition(arenaSize, arenaSize, random, list.map(Robot::position)),
                         startingEnergy
                     )
-                    else -> Robot(player, bluePos, startingEnergy)
+                    list.add(robot)
+                    list
                 }
-            },
+            ,
             terrain,
             terrain.mapAll { _, _, aTerrain ->
                 val effects = mutableListOf<Effect>()
@@ -57,9 +53,23 @@ class Bout(
         state = BoutState.STARTED
     }
 
+    private fun createUniqePosition(
+        rows: Int,
+        cols: Int,
+        random: Random,
+        existingPositions: List<Position>
+    ): Position {
+
+        var pos: Position
+        do {
+            pos = Position.random(rows, cols, random)
+        } while (existingPositions.contains(pos))
+
+        return pos
+    }
+
     private fun conductBout(
-        asyncProvider: (() -> Unit) -> Async<Unit>,
-        tournament: Tournament
+        asyncProvider: (() -> Unit) -> Async<Unit>
     ) {
 
         when (state) {
@@ -68,23 +78,23 @@ class Bout(
                 asyncProvider {
                     start(tournament.arenaSize, tournament.startingEnergy)
                 }.map {
-                    conductBout(asyncProvider, tournament)
+                    conductBout(asyncProvider)
                 }
 
             BoutState.STARTED ->
                 asyncProvider {
                     nextMove()
                 }.map {
-                    conductBout(asyncProvider, tournament)
+                    conductBout(asyncProvider)
                 }
 
             else -> asyncProvider {
-                publishResult(tournament)
+                publishResult()
             }
         }
     }
 
-    private fun publishResult(tournament: Tournament) {
+    private fun publishResult() {
         competitors(Player.YELLOW)
             .getCommunicationChannel()
             .publishResult(
@@ -121,8 +131,8 @@ class Bout(
         return Grid(arenaSize, arenaSize) { _, _ ->
             val rnd = random.nextDouble()
             when {
-                rnd < 0.05 -> Terrain.WATER
-                rnd < 0.1 -> Terrain.ROCK
+                rnd < tournament.chanceForWater -> Terrain.WATER
+                rnd < tournament.chanceForRock -> Terrain.ROCK
                 else -> Terrain.GREEN
             }
         }
