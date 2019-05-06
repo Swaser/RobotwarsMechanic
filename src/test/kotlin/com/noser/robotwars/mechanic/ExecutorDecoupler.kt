@@ -9,8 +9,8 @@ import java.util.function.Supplier
 class ExcutorAsync<U>
 private constructor(private val cf: CompletableFuture<U>) : Async<U> {
 
-    override fun forEach(f: (U) -> Unit) {
-        cf.thenAccept(f)
+    override fun forEach(consumer: (U) -> Unit) {
+        cf.thenAccept(consumer)
     }
 
     override fun <V> map(f: (U) -> V): Async<V> {
