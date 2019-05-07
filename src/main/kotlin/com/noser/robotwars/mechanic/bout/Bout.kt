@@ -96,7 +96,7 @@ class Bout(
 
     private fun publishResult() {
         competitors(Player.YELLOW)
-            .getCommunicationChannel()
+            .commChannel
             .publishResult(
                 arena,
                 state.winner() ?: throw IllegalArgumentException("Bout not yet finished")
@@ -105,7 +105,7 @@ class Bout(
 
     private fun nextMove() {
         val move = competitors(arena.activePlayer)
-            .getCommunicationChannel()
+            .commChannel
             .nextMove(arena)
         if (move == null) {
             state = when (arena.activePlayer) {

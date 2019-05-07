@@ -16,6 +16,8 @@
         <kotlin.code.style>official</kotlin.code.style>
         <junit.version>4.12</junit.version>
         <kotlin.compiler.jvmTarget>1.8</kotlin.compiler.jvmTarget>
+        <slf4j.version>1.7.26</slf4j.version>
+        <logback.version>1.2.3</logback.version>
     </properties>
 
     <dependencies>
@@ -28,6 +30,17 @@
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-test-junit</artifactId>
             <version>${kotlin.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>

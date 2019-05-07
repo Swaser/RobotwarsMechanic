@@ -1,6 +1,5 @@
 package com.noser.robotwars.mechanic.tournament
 
-class Competitor {
+class Competitor(val commChannel: CommChannel) {
 
-    fun getCommunicationChannel() : CommChannel = TODO()
 }
