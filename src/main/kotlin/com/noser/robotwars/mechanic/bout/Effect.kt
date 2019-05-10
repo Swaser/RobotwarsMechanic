@@ -2,28 +2,38 @@ package com.noser.robotwars.mechanic.bout
 
 sealed class Effect {
 
-    abstract fun applyTo(robot : Robot) : Robot
-
-    class Fire : Effect() {
-        override fun applyTo(robot: Robot): Robot {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        }
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        return true
     }
 
-    class Burnable : Effect() {
-        override fun applyTo(robot: Robot) = robot
+    override fun hashCode(): Int {
+        return javaClass.hashCode()
     }
 
-    class Energy(val amount : Int) : Effect() {
+    class None : Effect()
 
-        override fun applyTo(robot: Robot): Robot {
-            TODO()
-        }
+    class Fire : Effect()
 
+    class Burnable : Effect()
+
+    class Energy(val amount: Int) : Effect() {
         init {
             check(amount > 0) {
                 "amount of energy must be > 0"
             }
         }
+    }
+
+    companion object {
+        private val NONE = None()
+        private val FIRE = Fire()
+        private val BURNABLE = Burnable()
+
+        fun none() : Effect = NONE
+        fun fire() : Effect = FIRE
+        fun burnable() : Effect = BURNABLE
+        fun energy(amount : Int) : Effect = Energy(amount)
     }
 }

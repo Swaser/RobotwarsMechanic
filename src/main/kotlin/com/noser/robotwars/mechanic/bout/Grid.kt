@@ -18,16 +18,22 @@ private constructor(
     )
             : this(rows, cols, List(rows) { row -> List(cols) { col -> initializer(row, col) } })
 
-    fun row(r: Int) = grid[r]
+    init {
+        check(rows >= 2) { "Grid must have at least 2 rows" }
+        check(cols >= 2) { "Grid must have at least 2 cols" }
+    }
 
-    operator fun get(r: Int) = row(r)
+    operator fun get(row: Int): List<V> = grid[row]
+    operator fun get(position: Position): V = grid[position.row][position.col]
+
+    fun row(row: Int) = grid[row]
 
     fun col(c: Int) = grid.map { it[c] }
 
-    fun mapOne(position : Position, f : (V) -> V) : Grid<V> =
-            mapAll { r, c, v ->
-                if (Position(r, c) == position) f(v) else v
-            }
+    fun mapOne(position: Position, f: (V) -> V): Grid<V> =
+        mapAll { r, c, v ->
+            if (Position(r, c) == position) f(v) else v
+        }
 
     fun <T> mapAll(f: (Int, Int, V) -> T): Grid<T> =
         Grid(rows,

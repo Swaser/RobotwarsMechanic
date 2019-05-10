@@ -5,5 +5,9 @@ class Tournament(
     val arenaSize: Int,
     val startingEnergy: Int,
     val chanceForWater: Double,
-    val chanceForRock: Double
+    val chanceForRock: Double,
+    val maxEnergy: Int,
+    val startingHealth: Int,
+    val startingShield: Int,
+    val maxShield: Int
 )

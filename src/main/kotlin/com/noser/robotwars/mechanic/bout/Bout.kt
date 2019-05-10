@@ -19,10 +19,13 @@ class Bout(
         competitors(Player.BLUE)
     )
 
-    fun start(
-        arenaSize: Int,
-        startingEnergy: Int
-    ) {
+    fun start(arenaSize: Int,
+              startingEnergy: Int,
+              maxEnergy: Int,
+              startingHealth: Int,
+              startingShield: Int,
+              maxShield: Int) {
+
         val random = Random(System.currentTimeMillis())
         val terrain = createFreshTerrain(arenaSize, random)
 
@@ -30,23 +33,25 @@ class Bout(
             Player.YELLOW,
             Player.values()
                 .fold(mutableListOf()) { list, player ->
-                    val robot = Robot(
-                        player,
-                        createUniqePosition(arenaSize, arenaSize, random, list.map(Robot::position)),
-                        startingEnergy
-                    )
+                    val robot = Robot(player,
+                                      createUniqePosition(arenaSize, arenaSize, random, list.map(Robot::position)),
+                                      startingEnergy,
+                                      maxEnergy,
+                                      startingHealth,
+                                      startingShield,
+                                      maxShield)
                     list.add(robot)
                     list
                 }
             ,
             terrain,
             terrain.mapAll { _, _, aTerrain ->
-                val effects = mutableListOf<Effect>()
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
-                    effects.add(Effect.Burnable())
-                if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
-                    effects.add(Effect.Energy(random.nextInt(10)))
-                effects
+                    Effect.burnable()
+                else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
+                    Effect.energy(random.nextInt(10) + 1)
+                else
+                    Effect.none()
             }
         )
 
@@ -76,7 +81,12 @@ class Bout(
 
             BoutState.REGISTERED ->
                 asyncProvider {
-                    start(tournament.arenaSize, tournament.startingEnergy)
+                    start(tournament.arenaSize,
+                          tournament.startingEnergy,
+                          tournament.maxEnergy,
+                          tournament.startingHealth,
+                          tournament.startingShield,
+                          tournament.maxShield)
                 }.map {
                     conductBout(asyncProvider)
                 }
@@ -113,8 +123,10 @@ class Bout(
                 else -> BoutState.YELLOW_WINS
             }
         } else {
-            arena = Arena.apply(arena, move)
-            val winner = Arena.determineWinner(arena)
+            val (afterMove, messages) = Arenas.applyMove(arena, move)
+            arena = afterMove
+            // TODO do something with the messages
+            val winner = Arenas.determineWinner(arena)
             if (winner != null) {
                 state = when (winner) {
                     Player.YELLOW -> BoutState.YELLOW_WINS
