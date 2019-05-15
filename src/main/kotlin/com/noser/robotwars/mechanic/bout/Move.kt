@@ -59,7 +59,7 @@ data class Move(
                         detailed.flatMap { anArena ->
                             Detailed
                                 .single(robot.copy(position = newPos, energy = robot.energy - terrain.movementCost),
-                                        "applyDirections() step $i: $player moved $dir.")
+                                        "applyDirections() step $i: $player moved $dir into $terrain.")
                                 .flatMap { aRobot ->
                                     anArena.effects.applyTo(aRobot)
                                         .mapDetails { "applyDirections() step $i: $it" }
