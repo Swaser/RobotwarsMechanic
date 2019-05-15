@@ -62,6 +62,7 @@ data class Move(
                                         "applyDirections() step $i: $player moved $dir.")
                                 .flatMap { aRobot ->
                                     anArena.effects.applyTo(aRobot)
+                                        .mapDetails { "applyDirections() step $i: $it" }
                                         .map { (anotherRobot, effects) ->
                                             Arena(player,
                                                   mutableListOf(anotherRobot).apply { addAll(others) },
