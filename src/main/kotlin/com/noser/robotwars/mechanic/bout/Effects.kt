@@ -19,4 +19,6 @@ class Effects(private val grid: Grid<Effect>) {
 
             else -> Detailed.none(Pair(robot, this))
         }
+
+    fun robotHit(pos : Position) : Detailed<Effects> = TODO("burnable -> fire")
 }

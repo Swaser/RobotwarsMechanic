@@ -98,32 +98,60 @@ data class Move(
 
             else -> {
                 val (updated, amount) = robot.fireCannon(shootEnergy)
-                for (hitPos in shotTrajectory(arena, updated.position, shootDirection)) {
-                    // TODO determine damage and effect
-                }
+                single(updated, "$player shoots $shootDirection with $amount energy")
+                    .flatMap { aRobot ->
+                        val hitPos = shotTrajectory(arena, aRobot.position, shootDirection)
+                            .find { others.find { other -> other.position == it } != null }
 
-                TODO()
+                        if (hitPos == null)
+                            none(Arena(player,
+                                       mutableListOf(aRobot).apply { addAll(others) },
+                                       arena.terrain,
+                                       arena.effects))
+                        else {
+                            val other = others.find { it.position == hitPos }!!
+                            arena.effects.robotHit(hitPos)
+                                .flatMap {
+                                    single(Arena(player,
+                                                 mutableListOf(aRobot).apply { addAll(others) },
+                                                 arena.terrain,
+                                                 arena.effects),
+                                           "${other.player} is hit for $amount damage")
+                                }
+                            single(Arena(player,
+                                         mutableListOf(aRobot).apply { addAll(others) },
+                                         arena.terrain,
+                                         arena.effects),
+                                   "${other.player} is hit for $amount damage")
+                        }
+
+                    }
             }
+
+
+            TODO()
         }
-
-        TODO()
     }
 
-    private fun shotTrajectory(arena: Arena, pos : Position, direction : Direction) : Sequence<Position> = TODO("take  into account terrain (rock)")
+    TODO()
+}
 
-    private fun applyRamming(arena: Arena): Detailed<Arena> {
+private fun shotTrajectory(arena: Arena, pos: Position, direction: Direction): Sequence<Position> =
+    TODO("take  into account terrain (rock)")
 
-        TODO()
-    }
+private fun applyRamming(arena: Arena): Detailed<Arena> {
 
-    private fun getRobots(arena: Arena): Pair<Robot, List<Robot>> {
+    TODO()
+}
 
-        val robot = arena.robots.find { it.player == player }
-            ?: throw IllegalArgumentException("$player's Robot not found")
+private fun getRobots(arena: Arena): Pair<Robot, List<Robot>> {
 
-        val others = arena.robots.filter { it.player != player }
+    val robot = arena.robots.find { it.player == player }
+        ?: throw IllegalArgumentException("$player's Robot not found")
 
-        return Pair(robot, others)
-    }
+    val others = arena.robots.filter { it.player != player }
+
+    return Pair(robot, others)
+}
 
 }
