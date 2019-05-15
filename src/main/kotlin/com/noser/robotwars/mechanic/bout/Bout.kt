@@ -34,7 +34,7 @@ class Bout(
             Player.values()
                 .fold(mutableListOf()) { list, player ->
                     val robot = Robot(player,
-                                      createUniqePosition(arenaSize, arenaSize, random, list.map(Robot::position)),
+                                      createUniquePosition(arenaSize, arenaSize, random, list.map(Robot::position)),
                                       startingEnergy,
                                       maxEnergy,
                                       startingHealth,
@@ -45,25 +45,23 @@ class Bout(
                 }
             ,
             terrain,
-            terrain.mapAll { _, _, aTerrain ->
+            Effects(terrain.mapAll { _, _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
                     Effect.burnable()
                 else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
                     Effect.energy(random.nextInt(10) + 1)
                 else
                     Effect.none()
-            }
+            })
         )
 
         state = BoutState.STARTED
     }
 
-    private fun createUniqePosition(
-        rows: Int,
-        cols: Int,
-        random: Random,
-        existingPositions: List<Position>
-    ): Position {
+    private fun createUniquePosition(rows: Int,
+                                     cols: Int,
+                                     random: Random,
+                                     existingPositions: List<Position>): Position {
 
         var pos: Position
         do {
@@ -73,9 +71,7 @@ class Bout(
         return pos
     }
 
-    private fun conductBout(
-        asyncProvider: (() -> Unit) -> Async<Unit>
-    ) {
+    private fun conductBout(asyncProvider: (() -> Unit) -> Async<Unit>) {
 
         when (state) {
 
@@ -125,6 +121,7 @@ class Bout(
         } else {
             val (afterMove, messages) = Arenas.applyMove(arena, move)
             arena = afterMove
+            // TODO advance active player
             // TODO do something with the messages
             val winner = Arenas.determineWinner(arena)
             if (winner != null) {

@@ -14,7 +14,7 @@ sealed class Effect {
 
     class None : Effect()
 
-    class Fire : Effect()
+    class Fire(val amount : Int) : Effect()
 
     class Burnable : Effect()
 
@@ -27,9 +27,9 @@ sealed class Effect {
     }
 
     companion object {
-        private val NONE = None()
-        private val FIRE = Fire()
-        private val BURNABLE = Burnable()
+        val NONE = None()
+        val FIRE = Fire(1)
+        val BURNABLE = Burnable()
 
         fun none() : Effect = NONE
         fun fire() : Effect = FIRE

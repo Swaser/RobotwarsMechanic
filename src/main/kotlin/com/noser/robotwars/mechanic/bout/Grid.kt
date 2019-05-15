@@ -4,7 +4,7 @@ package com.noser.robotwars.mechanic.bout
 /**
  * A grid is a sequence of rows where a row is a sequence of elements
  */
-class Grid<V>
+open class Grid<V>
 private constructor(
     val rows: Int,
     val cols: Int,
