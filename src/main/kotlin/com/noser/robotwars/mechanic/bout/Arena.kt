@@ -25,12 +25,6 @@ object Arenas {
 //
 //
 //
-//        if (move.loadShield > 0) {
-//            val (loaded, amount) = robot.loadShield(move.loadShield)
-//            robot = loaded
-//            messages.add("ApplyMove Shield : ${arena.activePlayer}'s Robot loads shield by $amount to ${robot.shield}")
-//        }
-//
 //        if (move.shootDirection != null && move.shootEnergy > 0) {
 //
 //            val (shot, amount) = robot.fireCannon(move.shootEnergy)
