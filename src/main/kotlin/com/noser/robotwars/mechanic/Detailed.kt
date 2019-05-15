@@ -7,15 +7,15 @@ private constructor(val value: T,
     operator fun component1(): T = value
     operator fun component2(): List<String> = details
 
-    fun addDetail(detail: String): Detailed<T> =
-        Detailed(value, details.toMutableList().apply { add(detail) })
-
-    fun addDetails(someDetails: Iterable<String>): Detailed<T> =
-        Detailed(value, details.toMutableList().apply { addAll(someDetails) })
-
-    fun <U> map(f: (T) -> U): Detailed<U> = Detailed(f(value), details)
-
-    fun mapDetails(t: (String) -> String) = Detailed(value, details.map(t))
+//    fun addDetail(detail: String): Detailed<T> =
+//        Detailed(value, details.toMutableList().apply { add(detail) })
+//
+//    fun addDetails(someDetails: Iterable<String>): Detailed<T> =
+//        Detailed(value, details.toMutableList().apply { addAll(someDetails) })
+//
+//    fun <U> mapValue(f: (T) -> U): Detailed<U> = Detailed(f(value), details)
+//
+//    fun mapDetails(t: (String) -> String) = Detailed(value, details.map(t))
 
     fun <U> flatMap(f: (T) -> Detailed<U>): Detailed<U> {
 

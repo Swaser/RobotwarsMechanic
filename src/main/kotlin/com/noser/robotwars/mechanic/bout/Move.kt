@@ -1,6 +1,8 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Detailed
+import com.noser.robotwars.mechanic.Detailed.Companion.none
+import com.noser.robotwars.mechanic.Detailed.Companion.single
 
 data class Move(
     val player: Player,
@@ -14,7 +16,7 @@ data class Move(
     fun applyTo(arena: Arena): Detailed<Arena> {
 
         if (player != arena.activePlayer) {
-            return Detailed.single(arena, "It's not $player's turn (but ${arena.activePlayer}'s)")
+            return single(arena, "It's not $player's turn (but ${arena.activePlayer}'s)")
         }
 
         return applyDirections(arena)
@@ -23,71 +25,93 @@ data class Move(
             .flatMap(this::applyRamming)
     }
 
-    private fun applyDirections(arena: Arena): Detailed<Arena> {
-        return directions
-            .fold(Detailed.none(arena)) { detailed, dir ->
+    private fun applyDirections(arena: Arena): Detailed<Arena> =
 
-                val (robot, others) = getRobots(detailed.value)
+        directions.fold(none(arena)) { detailed, dir ->
 
-                val newPos = robot.position.move(dir, arena.terrain.rows, arena.terrain.cols)
-                val occupyingRobot: Robot? by lazy { others.find { it.position == newPos } }
-                val terrain = detailed.value.terrain[newPos]
+            val (robot, others) = getRobots(detailed.value)
 
-                when {
+            val newPos = robot.position.move(dir, arena.terrain.rows, arena.terrain.cols)
+            val occupyingRobot: Robot? by lazy { others.find { it.position == newPos } }
+            val terrain = detailed.value.terrain[newPos]
 
-                    robot.health <= 0 -> return detailed.addDetail("$player has no health left.")
+            when {
 
-                    newPos == robot.position ->
-                        detailed.addDetail("$player cannot move out of terrain.")
+                robot.health <= 0 -> return detailed
+                    .flatMap { single(it, "$player has no health left.") }
 
-                    occupyingRobot != null ->
-                        detailed.addDetail("$player cannot move into terrain occupied by ${occupyingRobot!!.player}.")
+                newPos == robot.position -> detailed
+                    .flatMap { single(it, "$player cannot move out of terrain.") }
 
-                    robot.energy < terrain.movementCost ->
-                        detailed.addDetail("$player cannot move $dir into $terrain - not enough energy")
+                occupyingRobot != null -> detailed
+                    .flatMap {
+                        single(it, "$player cannot move into terrain occupied by ${occupyingRobot!!.player}.")
+                    }
 
-                    else ->
-                        detailed.flatMap { anArena ->
-                            Detailed
-                                .single(robot.copy(position = newPos, energy = robot.energy - terrain.movementCost),
-                                        "$player moves $dir into $terrain.")
-                                .flatMap { aRobot ->
-                                    anArena.effects.applyTo(aRobot)
-                                        .map { (anotherRobot, effects) ->
-                                            Arena(player,
-                                                  mutableListOf(anotherRobot).apply { addAll(others) },
-                                                  anArena.terrain,
-                                                  effects)
-                                        }
-                                }
-                        }
-                }
+                robot.energy < terrain.movementCost -> detailed
+                    .flatMap { single(it, "$player cannot move $dir into $terrain - not enough energy") }
+
+                else ->
+                    detailed.flatMap { anArena ->
+                        single(robot.copy(position = newPos, energy = robot.energy - terrain.movementCost),
+                               "$player moves $dir into $terrain.")
+                            .flatMap { movedRobot ->
+                                anArena.effects.applyTo(movedRobot)
+                                    .flatMap { (anotherRobot, effects) ->
+                                        none(Arena(player,
+                                                   mutableListOf(anotherRobot).apply { addAll(others) },
+                                                   anArena.terrain,
+                                                   effects))
+                                    }
+                            }
+                    }
             }
-    }
+        }
 
     private fun applyLoadShield(arena: Arena): Detailed<Arena> {
         val (robot, others) = getRobots(arena)
 
         return when {
-            robot.health <= 0 ->
-                Detailed.single(arena, "$player has no health left.")
+            loadShield <= 0 -> none(arena)
 
-            loadShield > 0 -> {
+            robot.health <= 0 ->
+                single(arena, "$player has no health left.")
+
+            else -> {
                 val (updated, amount) = robot.loadShield(loadShield)
-                Detailed.single(arena.copy(robots = mutableListOf(updated).apply { addAll(others) }),
-                                "$player loads shield by $amount (desired $loadShield)")
+                single(arena.copy(robots = mutableListOf(updated).apply { addAll(others) }),
+                       "$player loads shield by $amount (desired $loadShield)")
             }
-            else -> Detailed.none(arena)
         }
     }
 
 
-    fun applyFireCannon(arena: Arena): Detailed<Arena> {
+    private fun applyFireCannon(arena: Arena): Detailed<Arena> {
+
+        val (robot, others) = getRobots(arena)
+
+        when {
+            shootDirection == null || shootEnergy <= 0 -> none(arena)
+
+            robot.health <= 0 ->
+                single(arena, "$player has no health left.")
+
+            else -> {
+                val (updated, amount) = robot.fireCannon(shootEnergy)
+                for (hitPos in shotTrajectory(arena, updated.position, shootDirection)) {
+                    // TODO determine damage and effect
+                }
+
+                TODO()
+            }
+        }
 
         TODO()
     }
 
-    fun applyRamming(arena: Arena): Detailed<Arena> {
+    private fun shotTrajectory(arena: Arena, pos : Position, direction : Direction) : Sequence<Position> = TODO("take  into account terrain (rock)")
+
+    private fun applyRamming(arena: Arena): Detailed<Arena> {
 
         TODO()
     }
