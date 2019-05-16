@@ -1,6 +1,7 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Detailed
+import com.noser.robotwars.mechanic.Detailed.Companion.none
 
 class Effects(private val grid: Grid<Effect>) {
 
@@ -8,8 +9,8 @@ class Effects(private val grid: Grid<Effect>) {
 
         when (val effect = grid[robot.position]) {
 
-            is Effect.Fire -> Detailed.single(Pair(robot.takeDamage(effect.amount), this),
-                                              "${robot.player} took ${effect.amount} fire damage")
+            is Effect.Fire   -> Detailed.single(Pair(robot.takeDamage(effect.amount), this),
+                                                "${robot.player} took ${effect.amount} fire damage")
 
             is Effect.Energy -> {
                 val (updated, amount) = robot.addEnergy(effect.amount)
@@ -17,10 +18,14 @@ class Effects(private val grid: Grid<Effect>) {
                                 "${robot.player} absorbed $amount energy")
             }
 
-            else -> Detailed.none(Pair(robot, this))
+            else             -> Detailed.none(Pair(robot, this))
         }
 
     fun isFire(position: Position) = grid[position] is Effect.Fire
 
-    fun robotHit(robot: Robot) : Detailed<Pair<Robot,Effects>> = TODO("burnable -> fire / robot takes damage if burnable -> fire")
+    fun robotHit(robot: Robot): Detailed<Pair<Robot, Effects>> {
+
+        // TODO
+        return none(Pair(robot, this))
+    }
 }
