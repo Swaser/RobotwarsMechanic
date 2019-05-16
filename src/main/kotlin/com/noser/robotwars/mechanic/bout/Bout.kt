@@ -5,11 +5,9 @@ import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
 import kotlin.random.Random
 
-class Bout(
-    private val competitors: (Player) -> Competitor,
-    private val tournament: Tournament,
-    @Volatile var state: BoutState = BoutState.REGISTERED
-) {
+class Bout(private val competitors: (Player) -> Competitor,
+           private val tournament: Tournament,
+           @Volatile var state: BoutState = BoutState.REGISTERED) {
 
     @Volatile
     lateinit var arena: Arena
@@ -27,8 +25,8 @@ class Bout(
               maxShield: Int) {
 
         val random = Random(System.currentTimeMillis())
-        val terrain = createFreshTerrain(arenaSize, random)
         val bounds = Bounds(0..arenaSize, 0..arenaSize)
+        val terrain = createFreshTerrain(bounds, random)
 
         arena = Arena(
             Player.YELLOW,
@@ -47,7 +45,7 @@ class Bout(
             ,
             bounds,
             terrain,
-            Effects(terrain.mapAll { _, _, aTerrain ->
+            Effects(terrain.mapAll { _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
                     Effect.burnable()
                 else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
@@ -136,11 +134,8 @@ class Bout(
         }
     }
 
-    private fun createFreshTerrain(
-        arenaSize: Int,
-        random: Random
-    ): Grid<Terrain> {
-        return Grid(arenaSize, arenaSize) { _, _ ->
+    private fun createFreshTerrain(bounds: Bounds, random: Random): Grid<Terrain> {
+        return Grid(bounds) {
             val rnd = random.nextDouble()
             when {
                 rnd < tournament.chanceForWater -> Terrain.WATER
