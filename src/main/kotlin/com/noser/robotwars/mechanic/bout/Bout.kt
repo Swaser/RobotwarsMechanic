@@ -28,13 +28,14 @@ class Bout(
 
         val random = Random(System.currentTimeMillis())
         val terrain = createFreshTerrain(arenaSize, random)
+        val bounds = Bounds(0..arenaSize, 0..arenaSize)
 
         arena = Arena(
             Player.YELLOW,
             Player.values()
                 .fold(mutableListOf()) { list, player ->
                     val robot = Robot(player,
-                                      createUniquePosition(arenaSize, arenaSize, random, list.map(Robot::position)),
+                                      createUniquePosition(bounds, random, list.map(Robot::position)),
                                       startingEnergy,
                                       maxEnergy,
                                       startingHealth,
@@ -44,6 +45,7 @@ class Bout(
                     list
                 }
             ,
+            bounds,
             terrain,
             Effects(terrain.mapAll { _, _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
@@ -58,14 +60,13 @@ class Bout(
         state = BoutState.STARTED
     }
 
-    private fun createUniquePosition(rows: Int,
-                                     cols: Int,
+    private fun createUniquePosition(bounds: Bounds,
                                      random: Random,
                                      existingPositions: List<Position>): Position {
 
         var pos: Position
         do {
-            pos = Position.random(rows, cols, random)
+            pos = bounds.random(random)
         } while (existingPositions.contains(pos))
 
         return pos
@@ -87,14 +88,14 @@ class Bout(
                     conductBout(asyncProvider)
                 }
 
-            BoutState.STARTED ->
+            BoutState.STARTED    ->
                 asyncProvider {
                     nextMove()
                 }.map {
                     conductBout(asyncProvider)
                 }
 
-            else -> asyncProvider {
+            else                 -> asyncProvider {
                 publishResult()
             }
         }
@@ -118,7 +119,7 @@ class Bout(
         if (move == null) {
             state = when (arena.activePlayer) {
                 Player.YELLOW -> BoutState.BLUE_WINS
-                else -> BoutState.YELLOW_WINS
+                else          -> BoutState.YELLOW_WINS
             }
         } else {
             val (afterMove, messages) = move.applyTo(arena)
@@ -129,7 +130,7 @@ class Bout(
             if (winner != null) {
                 state = when (winner) {
                     Player.YELLOW -> BoutState.YELLOW_WINS
-                    else -> BoutState.BLUE_WINS
+                    else          -> BoutState.BLUE_WINS
                 }
             }
         }
@@ -143,8 +144,8 @@ class Bout(
             val rnd = random.nextDouble()
             when {
                 rnd < tournament.chanceForWater -> Terrain.WATER
-                rnd < tournament.chanceForRock -> Terrain.ROCK
-                else -> Terrain.GREEN
+                rnd < tournament.chanceForRock  -> Terrain.ROCK
+                else                            -> Terrain.GREEN
             }
         }
     }

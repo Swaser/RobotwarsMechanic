@@ -1,7 +1,6 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Detailed
-import com.noser.robotwars.mechanic.Detailed.Companion.many
 import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
 
@@ -36,7 +35,7 @@ data class Move(val player: Player,
             if (robot.energy <= 0) return detailed
                 .flatMap { single(it, "$player has no energy left.") }
 
-            val newPos = robot.position.move(dir, arena.terrain.rows, arena.terrain.cols)
+            val newPos = robot.position.move(dir, arena.bounds)
 
             if (newPos == null) {
                 detailed.flatMap { single(it, "$player cannot move out of terrain.") }
@@ -110,8 +109,7 @@ data class Move(val player: Player,
                     .flatMap { _ ->
                         findRobotHit(others, shotTrajectory(canonFired.position,
                                                             shootDirection,
-                                                            arena.terrain.rows,
-                                                            arena.terrain.cols))
+                                                            arena.bounds))
                             ?.let { aHitRobot ->
                                 arena.effects.robotHit(aHitRobot)
                                     .flatMap { (otherWithEffect, effects) ->
@@ -119,16 +117,16 @@ data class Move(val player: Player,
                                                "${otherWithEffect.player} takes $amount shot damage from $player")
                                             .flatMap { other ->
                                                 none(
-                                                    Arena(
-                                                        player,
-                                                        mutableListOf(canonFired).apply {
-                                                            addAll(others.map {
-                                                                if (it.position == other.position) other else it
-                                                            })
-                                                        },
-                                                        arena.terrain,
-                                                        effects
-                                                    )
+                                                    arena.copy(robots = mutableListOf(canonFired).apply {
+                                                        addAll(others
+                                                                   .map {
+                                                                       when {
+                                                                           it.position == other.position -> other
+                                                                           else                          -> it
+                                                                       }
+                                                                   })
+                                                    },
+                                                               effects = effects)
                                                 )
                                             }
                                     }
@@ -141,6 +139,95 @@ data class Move(val player: Player,
         }
     }
 
+    private fun shotTrajectory(pos: Position, direction: Direction, bounds: Bounds) =
+        generateSequence(pos.move(direction, bounds)) {
+            it.move(direction, bounds)
+        }
+
+    private fun applyRamming(arena: Arena): Detailed<Arena> {
+
+        return none(getRobots(arena)).flatMap { (robot, others) ->
+            when {
+                ramDirection == null -> none(arena)
+
+                robot.health <= 0    -> single(arena, "$player has no health left.")
+
+                robot.energy <= 0    -> single(arena, "$player has no energy left.")
+
+                else                 -> single(robot.copy(energy = robot.energy - 1),
+                                               "$player rams ${ramDirection.name}").flatMap { rammer ->
+
+                    val robots = mutableListOf(rammer)
+                    when (val robotHit = others.find {
+                        it.position == robot.position.move(ramDirection, arena.bounds)
+                    }) {
+                        null -> none(arena.copy(robots = robots.apply { addAll(others) }))
+
+                        else -> single(robotHit.takeDamage(1),
+                                       "${robotHit.player} is rammed for 1 damage").flatMap { rammed ->
+
+                            val nextPos = rammed.position.move(ramDirection, arena.bounds)
+                            val nextHit = others.find { it.position == nextPos }
+                            when {
+
+                                nextPos == null                        ->
+                                    single(arena.copy(robots = robots.apply {
+                                        addAll(others.map {
+                                            when {
+                                                it.position == rammed.position -> it.takeDamage(1)
+                                                else                           -> it
+                                            }
+                                        })
+                                    }),
+                                           "${rammed.player} bumps into wall and takes 1 damage.")
+
+                                arena.terrain[nextPos] == Terrain.ROCK ->
+                                    single(arena.copy(robots = robots.apply {
+                                        addAll(others.map {
+                                            when {
+                                                it.position == rammed.position -> it.takeDamage(1)
+                                                else                           -> it
+                                            }
+                                        })
+                                    }),
+                                           "${rammed.player} bumps into rock and takes 1 damage.")
+
+                                nextHit != null                        -> {
+                                    single(arena.copy(robots = robots.apply {
+                                        addAll(others.map {
+                                            when {
+                                                it.position == rammed.position -> it.takeDamage(1)
+                                                it.position == nextPos         -> it.takeDamage(1)
+                                                else                           -> it
+                                            }
+                                        })
+                                    }),
+                                           "${rammed.player} bumps into ${nextHit.player}. Both take 1 damage.")
+                                }
+
+                                else                                   ->
+                                    single(rammed.copy(position = nextPos),
+                                           "${rammed.player} is rammed $ramDirection").flatMap { moved ->
+                                        arena.effects.applyTo(moved).flatMap { (effected, effects) ->
+                                            none(arena.copy(robots = robots.apply {
+                                                addAll(others.map {
+                                                    when {
+                                                        it.position == rammed.position -> effected
+                                                        else                           -> it
+                                                    }
+                                                })
+                                            }, effects = effects))
+                                        }
+                                    }
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun findRobotHit(others: List<Robot>, shotTrajectory: Sequence<Position>): Robot? {
 
         for (position in shotTrajectory) {
@@ -149,105 +236,6 @@ data class Move(val player: Player,
         }
 
         return null
-    }
-
-    private fun shotTrajectory(pos: Position, direction: Direction, rows: Int, cols: Int) =
-        generateSequence(pos.move(direction, rows, cols)) {
-            it.move(direction, rows, cols)
-        }
-
-    private fun applyRamming(arena: Arena): Detailed<Arena> {
-
-        val (robot, others) = getRobots(arena)
-
-        val robotHit by lazy {
-            findRobotHit(others, generateSequence(robot.position.move(ramDirection!!,
-                                                                      arena.terrain.rows,
-                                                                      arena.terrain.cols)) { null })
-        }
-
-        return when {
-
-            ramDirection == null -> none(arena)
-
-            robot.health <= 0    -> single(arena, "$player has no health left.")
-
-            robot.energy <= 0    -> single(arena, "$player has no energy left.")
-
-            robotHit == null     -> {
-                // no one is hit -> simply loose energy
-                val robots = mutableListOf(robot.copy(energy = robot.energy - 1)).apply { addAll(others) }
-                single(arena.copy(robots = robots), "$player rams ${ramDirection.name} but doesn't hit anyone.")
-            }
-
-            else                 -> {
-
-                val nextPos = robotHit!!.position.move(ramDirection, arena.terrain.rows, arena.terrain.cols)
-                val nextRobotHit by lazy { others.find { it.position == nextPos!! } }
-
-                if (nextPos == null || arena.terrain[nextPos] == Terrain.ROCK) {
-
-                    // into wall or rock -> no one moves but robotHit takes an additional damage
-
-                    val robots = mutableListOf(robot.copy(energy = robot.energy - 1)).apply {
-                        addAll(others.map {
-                            when {
-                                it.position == robotHit!!.position -> it.takeDamage(2)
-                                else                               -> it
-                            }
-                        }
-                        )
-                    }
-                    val wallOrRock = nextPos?.let { "rock" } ?: "wall"
-                    many(arena.copy(robots = robots),
-                         "$player rams ${robotHit!!.player} ${ramDirection.name}",
-                         "${robotHit!!.player} takes 2 damage as it is rammed into $wallOrRock")
-
-                } else if (nextRobotHit != null) {
-
-                    // another robot is hit -> no one moves but both take an additional damage
-                    val robots = mutableListOf(robot.copy(energy = robot.energy - 1)).apply {
-                        addAll(others.map {
-                            when {
-                                it.position == robotHit!!.position -> it.takeDamage(2)
-                                it.position == nextPos             -> it.takeDamage(1)
-                                else                               -> it
-                            }
-                        })
-                    }
-                    many(arena.copy(robots = robots),
-                         "$player rams ${robotHit!!.player} ${ramDirection.name}",
-                         "${robotHit!!.player} takes 2 damage as it is rammed into ${nextRobotHit!!.player}",
-                         "${nextRobotHit!!.player} takes 1 damage as it is rammed by ${robotHit!!.player}")
-
-                } else {
-
-                    // no next robot hit (and cannot be solid terrain either - but could be fire)
-                    arena.effects.applyTo(robotHit!!.takeDamage(1).copy(position = nextPos))
-                        .flatMap { (updatedRobot, effects) ->
-
-                            val robots = mutableListOf(robot.copy(energy = robot.energy - 1)).apply {
-                                addAll(others.map {
-                                    when {
-                                        it.position == robotHit!!.position -> updatedRobot
-                                        else                               -> it
-                                    }
-                                })
-                            }
-                            val updatedArena = arena.copy(robots = robots, effects = effects)
-                            if (effects.isFire(nextPos)) {
-                                many(updatedArena,
-                                     "$player rams ${robotHit!!.player} ${ramDirection.name}",
-                                     "${robotHit!!.player} takes 1 damage and is moved ${ramDirection.name}")
-                            } else {
-                                many(updatedArena,
-                                     "$player rams ${robotHit!!.player} ${ramDirection.name}",
-                                     "${robotHit!!.player} takes 2 damage and is moved ${ramDirection.name} into fire")
-                            }
-                        }
-                }
-            }
-        }
     }
 
     private fun getRobots(arena: Arena): Pair<Robot, List<Robot>> {
