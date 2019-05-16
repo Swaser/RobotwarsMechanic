@@ -1,5 +1,6 @@
 package com.noser.robotwars.mechanic.bout
 
+import kotlin.math.abs
 import kotlin.random.Random
 
 data class Position(val row: Int,
@@ -13,6 +14,8 @@ data class Position(val row: Int,
             Direction.W -> if (col + 1 in bounds.cols) Position(row, col + 1) else null
             else        -> null
         }
+
+    fun distanceTo(other: Position) = abs(other.row - row) + abs(other.col - col)
 
     companion object {
         fun random(bounds: Bounds, random: Random) =

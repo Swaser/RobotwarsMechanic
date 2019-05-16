@@ -19,6 +19,13 @@ data class Robot(val player: Player,
         check(shield <= maxShield)
     }
 
+    fun moveTo(pos : Position, energyCost : Int) : Robot {
+        check(position.distanceTo(pos) == 1) { "Robot can only move 1 field at a time" }
+        check(energyCost >= 0) { "Energy cost of move cannot be negative" }
+        check(energy >= energyCost) { "Robot doesn't have enough energy to move" }
+        return copy(position = pos, energy = energy - energyCost)
+    }
+
     fun takeDamage(amount: Int): Robot {
         check(amount >= 0) { "damage cannot be negative" }
         val shieldDmg = min(shield,amount)
@@ -38,13 +45,12 @@ data class Robot(val player: Player,
         return Pair(copy(energy = energy - actualLoading, shield = shield + actualLoading), actualLoading)
     }
 
-    /**
-     * returns the robot and the actual energy in the shot
-     */
     fun fireCannon(amount: Int): Pair<Robot, Int> {
         check(amount >= 0) { "shield load amount cannot be negative" }
         val actualEnergy = min(energy, amount)
         return Pair(copy(energy = energy - actualEnergy), actualEnergy)
     }
+
+
 
 }

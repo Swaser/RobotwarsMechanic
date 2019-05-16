@@ -59,8 +59,7 @@ data class Move(val player: Player,
 
                         else                                ->
                             detailed.flatMap { anArena ->
-                                single(robot.copy(position = newPos,
-                                                  energy = robot.energy - terrain.movementCost)) { moved ->
+                                single(robot.moveTo(newPos, terrain.movementCost)) { moved ->
                                     "$player moves $dir ${terrain.preposition} ${terrain.name} " +
                                     "(${moved.energy}/${moved.shield}/${moved.health})."
                                 }
