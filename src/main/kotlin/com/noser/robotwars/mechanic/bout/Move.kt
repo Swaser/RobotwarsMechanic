@@ -14,7 +14,7 @@ data class Move(val player: Player,
     fun applyTo(arena: Arena): Detailed<Arena> {
 
         if (player != arena.activePlayer) {
-            return single(arena, "It's not $player's turn (but ${arena.activePlayer}'s)")
+            return single(arena) { "It's not $player's turn (but ${arena.activePlayer}'s)" }
         }
 
         return applyDirections(arena)
@@ -29,36 +29,41 @@ data class Move(val player: Player,
 
             val (robot, others) = getRobots(detailed.value)
             val newPos = robot.position.move(dir, arena.bounds)
+
             when {
 
-                robot.health <= 0 -> return detailed.flatMap { single(it, "$player has no health left.") }
+                robot.health <= 0 -> return detailed.flatMap { single(it) { "$player has no health left." } }
 
-                robot.energy <= 0 -> return detailed.flatMap { single(it, "$player has no energy left.") }
+                robot.energy <= 0 -> return detailed.flatMap { single(it) { "$player has no energy left." } }
 
-                newPos == null    -> detailed.flatMap { single(it, "$player cannot move $dir out of terrain.") }
+                newPos == null    -> detailed.flatMap { single(it) { "$player cannot move $dir out of terrain." } }
 
                 else              -> {
 
-                    val occupyingRobot: Robot? by lazy { others.find { it.position == newPos } }
+                    val occupyingRobot: Robot? = others.find { it.position == newPos }
                     val terrain = detailed.value.terrain[newPos]
 
                     when {
                         occupyingRobot != null              -> detailed.flatMap {
-                            single(it, "$player cannot move $dir ${terrain.preposition} ${terrain.name}" +
-                                    " occupied by ${occupyingRobot!!.player}.")
+                            single(it) {
+                                "$player cannot move $dir ${terrain.preposition} ${terrain.name}" +
+                                " occupied by ${occupyingRobot.player}."
+                            }
                         }
 
                         robot.energy < terrain.movementCost -> detailed.flatMap {
-                            single(it, "$player doesn't have enough energy to" +
-                                    " move $dir ${terrain.preposition} ${terrain.name}")
+                            single(it) {
+                                "$player doesn't have enough energy to move $dir ${terrain.preposition} ${terrain.name}"
+                            }
                         }
 
                         else                                ->
                             detailed.flatMap { anArena ->
-                                val moved = robot.copy(position = newPos, energy = robot.energy - terrain.movementCost)
-                                single(moved,
-                                       "$player moves $dir ${terrain.preposition} ${terrain.name} " +
-                                               "(${moved.energy}/${moved.shield}/${moved.health}).")
+                                single(robot.copy(position = newPos,
+                                                  energy = robot.energy - terrain.movementCost)) { moved ->
+                                    "$player moves $dir ${terrain.preposition} ${terrain.name} " +
+                                    "(${moved.energy}/${moved.shield}/${moved.health})."
+                                }
                                     .flatMap { movedRobot ->
                                         anArena.effects.applyTo(movedRobot)
                                             .flatMap { (anotherRobot, effects) ->
@@ -79,15 +84,17 @@ data class Move(val player: Player,
         return when {
             loadShield <= 0   -> none(arena)
 
-            robot.health <= 0 -> single(arena, "$player has no health left.")
+            robot.health <= 0 -> single(arena) { "$player has no health left." }
 
-            robot.energy <= 0 -> single(arena, "$player has no energy left.")
+            robot.energy <= 0 -> single(arena) { "$player has no energy left." }
 
             else              -> {
-                val (updated, amount) = robot.loadShield(loadShield)
-                single(arena.copy(robots = mutableListOf(updated).apply { addAll(others) }),
-                       "$player loads shield by $amount (desired $loadShield) " +
-                               "(${updated.energy}/${updated.shield}/${updated.health}).")
+                single(robot.loadShield(loadShield)) { (updated, amount) ->
+                    "$player loads shield by $amount (desired $loadShield) " +
+                    "(${updated.energy}/${updated.shield}/${updated.health})."
+                }.flatMap { (updated, _) ->
+                    none(arena.copy(robots = mutableListOf(updated).apply { addAll(others) }))
+                }
             }
         }
     }
@@ -99,37 +106,37 @@ data class Move(val player: Player,
 
             shootDirection == null || shootEnergy <= 0 -> none(arena)
 
-            robot.health <= 0                          -> single(arena, "$player has no health left.")
+            robot.health <= 0                          -> single(arena) { "$player has no health left." }
 
-            robot.energy <= 0                          -> single(arena, "$player has no energy left.")
+            robot.energy <= 0                          -> single(arena) { "$player has no energy left." }
 
             else                                       -> {
-
-                val (fired, amount) = robot.fireCannon(shootEnergy)
-                single(fired, "$player fires $shootDirection with $amount energy " +
-                        "(${fired.energy}/${fired.shield}/${fired.health})")
-                    .flatMap { _ ->
-                        findRobotHit(others, shotTrajectory(fired.position, shootDirection, arena.bounds))
-                            ?.let { hit ->
-                                single(hit.takeDamage(amount),
-                                       "${hit.player} takes $amount damage").flatMap { shotResolved ->
-                                    arena.effects.robotHit(shotResolved).flatMap { (effectsResolved, effects) ->
-                                        val robots = mutableListOf(fired).apply {
-                                            addAll(others.map {
-                                                when {
-                                                    it.position == effectsResolved.position -> effectsResolved
-                                                    else                                    -> it
-                                                }
-                                            })
-                                        }
-                                        none(arena.copy(robots = robots, effects = effects))
+                single(robot.fireCannon(shootEnergy)) { (updated, amount) ->
+                    "$player fires $shootDirection with $amount energy (${updated.energy}/${updated.shield}/${updated.health})"
+                }.flatMap { (updated, amount) ->
+                    findRobotHit(others, shotTrajectory(updated.position, shootDirection, arena.bounds))
+                        ?.let { hit ->
+                            single(hit.takeDamage(amount)) {
+                                "${hit.player} takes $amount damage"
+                            }.flatMap { shotResolved ->
+                                arena.effects.robotHit(shotResolved).flatMap { (effectsResolved, effects) ->
+                                    val robots = mutableListOf(updated).apply {
+                                        addAll(others.map {
+                                            when {
+                                                it.position == effectsResolved.position -> effectsResolved
+                                                else                                    -> it
+                                            }
+                                        })
                                     }
+                                    none(arena.copy(robots = robots, effects = effects))
                                 }
                             }
-                            ?: single(arena.copy(robots = mutableListOf(fired).apply { addAll(others) }),
-                                      "$player doesn't hit anyone with cannon"
-                            )
+                        }
+                    ?: single(arena.copy(robots = mutableListOf(updated).apply { addAll(others) })) {
+                        "$player doesn't hit anyone with cannon"
                     }
+
+                }
             }
         }
     }
@@ -145,53 +152,51 @@ data class Move(val player: Player,
         return when {
             ramDirection == null -> none(arena)
 
-            robot.health <= 0    -> single(arena, "$player has no health left.")
+            robot.health <= 0    -> single(arena) { "$player has no health left." }
 
-            robot.energy <= 0    -> single(arena, "$player has no energy left.")
+            robot.energy <= 0    -> single(arena) { "$player has no energy left." }
 
             else                 -> {
 
-                val rammer = robot.copy(energy = robot.energy - 1)
-                single(rammer,
-                       "$player rams ${ramDirection.name} (${rammer.energy}/${rammer.shield}/${rammer.health})").flatMap { _ ->
+                single(robot.copy(energy = robot.energy - 1)) { rammer ->
+                    "$player rams ${ramDirection.name} (${rammer.energy}/${rammer.shield}/${rammer.health})"
+                }.flatMap { rammer ->
 
-                    val robots = mutableListOf(rammer)
-                    when (val robotHit = others.find {
-                        it.position == robot.position.move(ramDirection, arena.bounds)
-                    }) {
-                        null -> none(arena.copy(robots = robots.apply { addAll(others) }))
+                    val rammedField = robot.position.move(ramDirection, arena.bounds)
 
-                        else -> single(robotHit.takeDamage(1),
-                                       "${robotHit.player} is rammed for 1 damage").flatMap { rammed ->
+                    when (val robotHit = others.find { it.position == rammedField }) {
+
+                        null -> none(arena.copy(robots = mutableListOf(rammer).apply { addAll(others) }))
+
+                        else -> single(robotHit.takeDamage(1)) {
+                            "${robotHit.player} is rammed for 1 damage"
+                        }.flatMap { rammed ->
 
                             val nextPos = rammed.position.move(ramDirection, arena.bounds)
                             val nextHit = others.find { it.position == nextPos }
                             when {
-
-                                nextPos == null                        ->
-                                    single(arena.copy(robots = robots.apply {
+                                nextPos == null                        -> {
+                                    single(arena.copy(robots = mutableListOf(rammer).apply {
                                         addAll(others.map {
-                                            when {
-                                                it.position == rammed.position -> it.takeDamage(1)
-                                                else                           -> it
-                                            }
+                                            if (it.position == rammed.position) it.takeDamage(1) else it
                                         })
-                                    }),
-                                           "${rammed.player} bumps into wall and takes 1 damage.")
+                                    })) {
+                                        "${rammed.player} bumps into wall and takes 1 damage."
+                                    }
+                                }
 
                                 arena.terrain[nextPos] == Terrain.ROCK ->
-                                    single(arena.copy(robots = robots.apply {
+                                    single(arena.copy(robots = mutableListOf(rammer).apply {
                                         addAll(others.map {
                                             when {
                                                 it.position == rammed.position -> it.takeDamage(1)
                                                 else                           -> it
                                             }
                                         })
-                                    }),
-                                           "${rammed.player} bumps into rock and takes 1 damage.")
+                                    })) { "${rammed.player} bumps into rock and takes 1 damage." }
 
                                 nextHit != null                        -> {
-                                    single(arena.copy(robots = robots.apply {
+                                    single(arena.copy(robots = mutableListOf(rammer).apply {
                                         addAll(others.map {
                                             when {
                                                 it.position == rammed.position -> it.takeDamage(1)
@@ -199,15 +204,17 @@ data class Move(val player: Player,
                                                 else                           -> it
                                             }
                                         })
-                                    }),
-                                           "${rammed.player} bumps into ${nextHit.player}. Both take 1 damage.")
+                                    })) {
+                                        "${rammed.player} bumps into ${nextHit.player}. Both take 1 damage."
+                                    }
                                 }
 
                                 else                                   ->
-                                    single(rammed.copy(position = nextPos),
-                                           "${rammed.player} is rammed $ramDirection").flatMap { moved ->
+                                    single(rammed.copy(position = nextPos)) {
+                                        "${it.player} is rammed $ramDirection"
+                                    }.flatMap { moved ->
                                         arena.effects.applyTo(moved).flatMap { (effected, effects) ->
-                                            none(arena.copy(robots = robots.apply {
+                                            none(arena.copy(robots = mutableListOf(rammer).apply {
                                                 addAll(others.map {
                                                     when {
                                                         it.position == rammed.position -> effected
@@ -239,7 +246,7 @@ data class Move(val player: Player,
     private fun getRobots(arena: Arena): Pair<Robot, List<Robot>> {
 
         val robot = arena.robots.find { it.player == player }
-            ?: throw IllegalArgumentException("$player's Robot not found")
+                    ?: throw IllegalArgumentException("$player's Robot not found")
 
         val others = arena.robots.filter { it.player != player }
 
