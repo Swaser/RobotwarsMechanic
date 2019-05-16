@@ -20,5 +20,7 @@ class Effects(private val grid: Grid<Effect>) {
             else -> Detailed.none(Pair(robot, this))
         }
 
+    fun isFire(position: Position) = grid[position] is Effect.Fire
+
     fun robotHit(robot: Robot) : Detailed<Pair<Robot,Effects>> = TODO("burnable -> fire / robot takes damage if burnable -> fire")
 }
