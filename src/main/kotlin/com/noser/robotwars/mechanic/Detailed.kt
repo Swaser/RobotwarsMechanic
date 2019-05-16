@@ -17,6 +17,8 @@ private constructor(val value: T,
 
     companion object {
 
+        fun empty(detail: () -> String): Detailed<Unit> = Detailed(Unit, listOf(detail()))
+
         fun <T> none(value: T): Detailed<T> = Detailed(value, emptyList())
 
         fun <T> single(value: T, detail: (T) -> String): Detailed<T> = Detailed(value, listOf(detail(value)))

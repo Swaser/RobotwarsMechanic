@@ -1,6 +1,7 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Detailed
+import com.noser.robotwars.mechanic.Detailed.Companion.empty
 import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
 
@@ -80,7 +81,9 @@ data class Move(val player: Player,
     private fun applyLoadShield(arena: Arena): Detailed<Arena> {
 
         val (robot, others) = getRobots(arena)
+
         return when {
+
             loadShield <= 0   -> none(arena)
 
             robot.health <= 0 -> single(arena) { "$player has no health left." }
@@ -88,11 +91,8 @@ data class Move(val player: Player,
             robot.energy <= 0 -> single(arena) { "$player has no energy left." }
 
             else              -> {
-                single(robot.loadShield(loadShield)) { (updated, amount) ->
-                    "$player loads shield by $amount (desired $loadShield) " +
-                    "(${updated.energy}/${updated.shield}/${updated.health})."
-                }.flatMap { (updated, _) ->
-                    none(arena.copy(robots = mutableListOf(updated).apply { addAll(others) }))
+                robot.loadShield(loadShield).flatMap { loaded ->
+                    none(arena.copy(robots = mutableListOf(loaded).apply { addAll(others) }))
                 }
             }
         }
@@ -110,14 +110,10 @@ data class Move(val player: Player,
             robot.energy <= 0                          -> single(arena) { "$player has no energy left." }
 
             else                                       -> {
-                single(robot.fireCannon(shootEnergy)) { (updated, amount) ->
-                    "$player fires $shootDirection with $amount energy (${updated.energy}/${updated.shield}/${updated.health})"
-                }.flatMap { (updated, amount) ->
+                robot.fireCannon(shootDirection, shootEnergy).flatMap { (updated, amount) ->
                     findRobotHit(others, shotTrajectory(updated.position, shootDirection, arena.bounds))
                         ?.let { hit ->
-                            single(hit.takeDamage(amount)) {
-                                "${hit.player} takes $amount damage"
-                            }.flatMap { shotResolved ->
+                            hit.takeDamage(amount).flatMap { shotResolved ->
                                 arena.effects.robotHit(shotResolved).flatMap { (effectsResolved, effects) ->
                                     val robots = mutableListOf(updated).apply {
                                         addAll(others.map {
@@ -148,7 +144,9 @@ data class Move(val player: Player,
     private fun applyRamming(arena: Arena): Detailed<Arena> {
 
         val (robot, others) = getRobots(arena)
+
         return when {
+
             ramDirection == null -> none(arena)
 
             robot.health <= 0    -> single(arena) { "$player has no health left." }
@@ -167,63 +165,56 @@ data class Move(val player: Player,
 
                         null -> none(arena.copy(robots = mutableListOf(rammer).apply { addAll(others) }))
 
-                        else -> single(robotHit.takeDamage(1)) {
-                            "${robotHit.player} is rammed for 1 damage"
-                        }.flatMap { rammed ->
+                        else -> robotHit.takeDamage(1).flatMap { rammed ->
 
                             val nextPos = rammed.position.move(ramDirection, arena.bounds)
                             val nextHit = others.find { it.position == nextPos }
                             when {
                                 nextPos == null                        -> {
-                                    single(arena.copy(robots = mutableListOf(rammer).apply {
-                                        addAll(others.map {
-                                            if (it.position == rammed.position) it.takeDamage(1) else it
-                                        })
-                                    })) {
-                                        "${rammed.player} bumps into wall and takes 1 damage."
+                                    empty { "${rammed.player} is rammed into the wall." }.flatMap {
+                                        rammed.takeDamage(1).flatMap { intoWall ->
+                                            none(arena.copy(robots = mutableListOf(rammer, intoWall).apply {
+                                                addAll(others.filter { it.position != intoWall.position })
+                                            }))
+                                        }
                                     }
                                 }
 
                                 arena.terrain[nextPos] == Terrain.ROCK ->
-                                    single(arena.copy(robots = mutableListOf(rammer).apply {
-                                        addAll(others.map {
-                                            when {
-                                                it.position == rammed.position -> it.takeDamage(1)
-                                                else                           -> it
-                                            }
-                                        })
-                                    })) { "${rammed.player} bumps into rock and takes 1 damage." }
+                                    empty { "${rammed.player} is rammed into rock." }.flatMap {
+                                        rammed.takeDamage(1).flatMap { intoRock ->
+                                            none(arena.copy(robots = mutableListOf(rammer, intoRock).apply {
+                                                addAll(others.filter { it.position != intoRock.position })
+                                            }))
+                                        }
+                                    }
 
                                 nextHit != null                        -> {
-                                    single(arena.copy(robots = mutableListOf(rammer).apply {
-                                        addAll(others.map {
-                                            when {
-                                                it.position == rammed.position -> it.takeDamage(1)
-                                                it.position == nextPos         -> it.takeDamage(1)
-                                                else                           -> it
+                                    empty { "${rammed.player} is rammed into ${nextHit.player}" }.flatMap {
+                                        rammed.takeDamage(1).flatMap { intoNext ->
+                                            nextHit.takeDamage(1).flatMap { nextRammed ->
+                                                none(arena.copy(robots = mutableListOf(rammer,
+                                                                                       intoNext,
+                                                                                       nextRammed).apply {
+                                                    addAll(others.filter {
+                                                        it.position != intoNext.position && it.position != nextRammed.position
+                                                    })
+                                                }))
                                             }
-                                        })
-                                    })) {
-                                        "${rammed.player} bumps into ${nextHit.player}. Both take 1 damage."
+                                        }
                                     }
                                 }
 
                                 else                                   ->
-                                    single(rammed.copy(position = nextPos)) {
+                                    single(rammed.moveTo(nextPos, 0)) {
                                         "${it.player} is rammed $ramDirection"
                                     }.flatMap { moved ->
                                         arena.effects.applyTo(moved).flatMap { (effected, effects) ->
-                                            none(arena.copy(robots = mutableListOf(rammer).apply {
-                                                addAll(others.map {
-                                                    when {
-                                                        it.position == rammed.position -> effected
-                                                        else                           -> it
-                                                    }
-                                                })
+                                            none(arena.copy(robots = mutableListOf(rammer, effected).apply {
+                                                addAll(others.filter { it.position != rammed.position })
                                             }, effects = effects))
                                         }
                                     }
-
                             }
                         }
                     }
