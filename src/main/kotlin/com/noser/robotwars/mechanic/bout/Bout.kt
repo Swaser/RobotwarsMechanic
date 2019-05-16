@@ -110,20 +110,22 @@ class Bout(
     }
 
     private fun nextMove() {
+
         val move = competitors(arena.activePlayer)
             .commChannel
             .nextMove(arena)
+
         if (move == null) {
             state = when (arena.activePlayer) {
                 Player.YELLOW -> BoutState.BLUE_WINS
                 else -> BoutState.YELLOW_WINS
             }
         } else {
-            val (afterMove, messages) = Arenas.applyMove(arena, move)
+            val (afterMove, messages) = move.applyTo(arena)
             arena = afterMove
             // TODO advance active player
             // TODO do something with the messages
-            val winner = Arenas.determineWinner(arena)
+            val winner = afterMove.determineWinner()
             if (winner != null) {
                 state = when (winner) {
                     Player.YELLOW -> BoutState.YELLOW_WINS
