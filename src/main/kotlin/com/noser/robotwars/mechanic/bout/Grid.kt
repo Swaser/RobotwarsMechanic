@@ -1,8 +1,8 @@
 package com.noser.robotwars.mechanic.bout
 
 class Grid<V>
-private constructor(private val bounds: Bounds,
-                    private val grid: Map<Position, V>) {
+private constructor(val bounds: Bounds,
+                    val grid: Map<Position, V>) {
 
     constructor(bounds: Bounds, initializer: (Position) -> V)
             : this(bounds, bounds.positions.map { Pair(it, initializer(it)) }.toMap())

@@ -1,7 +1,12 @@
-.idea/
+.idea
+/.gradle
 
 *.iml
+*.ipr
+*.iws
 
 javacore*
 
 target/
+/out
+/build
