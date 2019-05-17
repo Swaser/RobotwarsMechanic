@@ -45,14 +45,14 @@ class Bout(private val competitors: (Player) -> Competitor,
             ,
             bounds,
             terrain,
-            Effects(terrain.mapAll { _, aTerrain ->
+            terrain.mapAll { _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
                     Effect.burnable()
                 else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
                     Effect.energy(random.nextInt(10) + 1)
                 else
                     Effect.none()
-            })
+            }
         )
 
         state = BoutState.STARTED
@@ -86,14 +86,14 @@ class Bout(private val competitors: (Player) -> Competitor,
                     conductBout(asyncProvider)
                 }
 
-            BoutState.STARTED    ->
+            BoutState.STARTED ->
                 asyncProvider {
                     nextMove()
                 }.map {
                     conductBout(asyncProvider)
                 }
 
-            else                 -> asyncProvider {
+            else -> asyncProvider {
                 publishResult()
             }
         }
@@ -117,7 +117,7 @@ class Bout(private val competitors: (Player) -> Competitor,
         if (move == null) {
             state = when (arena.activePlayer) {
                 Player.YELLOW -> BoutState.BLUE_WINS
-                else          -> BoutState.YELLOW_WINS
+                else -> BoutState.YELLOW_WINS
             }
         } else {
             val (afterMove, messages) = move.applyTo(arena)
@@ -128,7 +128,7 @@ class Bout(private val competitors: (Player) -> Competitor,
             if (winner != null) {
                 state = when (winner) {
                     Player.YELLOW -> BoutState.YELLOW_WINS
-                    else          -> BoutState.BLUE_WINS
+                    else -> BoutState.BLUE_WINS
                 }
             }
         }
@@ -139,8 +139,8 @@ class Bout(private val competitors: (Player) -> Competitor,
             val rnd = random.nextDouble()
             when {
                 rnd < tournament.chanceForWater -> Terrain.WATER
-                rnd < tournament.chanceForRock  -> Terrain.ROCK
-                else                            -> Terrain.GREEN
+                rnd < tournament.chanceForRock -> Terrain.ROCK
+                else -> Terrain.GREEN
             }
         }
     }
