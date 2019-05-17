@@ -7,9 +7,9 @@ private constructor(val value: T,
     operator fun component1(): T = value
     operator fun component2(): List<String> = details
 
-    fun <U> map(f: (T) -> U): Detailed<U> = Detailed(f(value), details)
+    fun <U> map(f: (T) -> U): Detailed<U> = flatMap { none(f(value)) }
 
-    fun addDetail(detail: String): Detailed<T> = Detailed(value, details.toMutableList().apply { add(detail) })
+    fun addDetail(detail: String): Detailed<T> = flatMap { single(it) { detail } }
 
     fun <U> flatMap(f: (T) -> Detailed<U>): Detailed<U> {
 
@@ -20,8 +20,6 @@ private constructor(val value: T,
     }
 
     companion object {
-
-        fun empty(detail: () -> String): Detailed<Unit> = Detailed(Unit, listOf(detail()))
 
         fun <T> none(value: T): Detailed<T> = Detailed(value, emptyList())
 
