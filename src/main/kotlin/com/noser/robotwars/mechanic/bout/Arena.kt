@@ -20,25 +20,31 @@ data class Arena(val activePlayer: Player,
             .flatMap { it.applyEffects(player) }
     }
 
-    fun fireCannon(player: Player, dir: Direction, amount: Int): Detailed<Pair<Arena, Int>> {
-        return findRobot(player)
-            .fireCannon(dir, amount).map { (fired, actual) -> Pair(withRobots(fired), actual) }
-    }
-
     /**
      * Includes effects
      */
-    fun takeCannonDamage(player: Player, amount: Int): Detailed<Arena> {
-        return takeSimpleDamage(player, amount).flatMap { directFireResolved ->
+    fun resolveFiring(player: Player, dir: Direction, amount: Int): Detailed<Arena> =
 
-            val robot = directFireResolved.findRobot(player)
-            when (effects[robot.position]) {
-                is Effect.Burnable -> directFireResolved
-                    .ignite(robot.position)
-                    .flatMap { it.takeSimpleDamage(player, 1) }
-                else -> none(directFireResolved)
+        findRobot(player).fireCannon(dir, amount).flatMap { (robot, dmg) ->
+            val shotTrajectory = generateSequence(robot.position.move(dir, bounds)) { it.move(dir, bounds) }
+            when (val playerHit = findRobotHit(shotTrajectory)?.player) {
+                null -> single(withRobots(robot)) { "$player doesn't hit anything" }
+                else -> none(withRobots(robot)).flatMap {
+                    it.takeSimpleDamage(playerHit, dmg).flatMap { directFireResolved: Arena ->
+                        val robotHit = directFireResolved.findRobot(playerHit)
+                        when (effects[robotHit.position]) {
+                            is Effect.Burnable -> directFireResolved
+                                .ignite(robotHit.position)
+                                .flatMap { arena: Arena -> arena.takeSimpleDamage(robotHit.player, 1) }
+                            else -> none(directFireResolved)
+                        }
+                    }
+                }
             }
         }
+
+    fun loadShield(player: Player, amount: Int): Detailed<Arena> {
+        return findRobot(player).loadShield(amount).map { withRobots(it) }
     }
 
     fun resolveRamming(player: Player, dir: Direction): Detailed<Arena> {
@@ -81,7 +87,6 @@ data class Arena(val activePlayer: Player,
         }
     }
 
-
     private fun takeSimpleDamage(player: Player, amount: Int): Detailed<Arena> {
         return findRobot(player).takeDamage(amount).map { withRobots(it) }
     }
@@ -92,8 +97,14 @@ data class Arena(val activePlayer: Player,
         }
     }
 
-    fun loadShield(player: Player, amount: Int): Detailed<Arena> {
-        return findRobot(player).loadShield(amount).map { withRobots(it) }
+    private fun findRobotHit(shotTrajectory: Sequence<Position>): Robot? {
+
+        for (position in shotTrajectory) {
+            val candidate = findRobot(position)
+            if (candidate != null) return candidate
+        }
+
+        return null
     }
 
     private fun applyEffects(player: Player): Detailed<Arena> {
@@ -111,9 +122,12 @@ data class Arena(val activePlayer: Player,
     fun findRobot(player: Player) =
         robots.find { it.player == player } ?: throw IllegalArgumentException("Robot $player not found")
 
-    fun withRobots(vararg robot: Robot): Arena = TODO()
+    private fun withRobots(vararg robot: Robot) =
+        copy(robots = robots.map { existing ->
+            robot.find { it.player == existing.player } ?: existing
+        })
 
-    fun withEffects(effects: Grid<Effect>): Arena = TODO()
+    private fun withEffects(effects: Grid<Effect>) = copy(effects = effects)
 
     fun determineWinner(): Player? = TODO()
 }

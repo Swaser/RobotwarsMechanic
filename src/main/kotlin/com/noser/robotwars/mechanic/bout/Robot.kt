@@ -48,7 +48,7 @@ class Robot(val player: Player,
         val shieldDmg = min(shield, amount)
         val healthDmg = amount - shieldDmg
         return single(update(shield = shield - shieldDmg, health = health - healthDmg)) {
-            "$player takes $amount ($shieldDmg to shield) (E=${it.energy},S=${it.shield},H=${it.health})"
+            "$player takes $amount damage ($shieldDmg to shield) (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 

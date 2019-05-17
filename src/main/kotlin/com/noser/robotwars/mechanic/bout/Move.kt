@@ -60,10 +60,10 @@ data class Move(val player: Player,
 
     private fun applyLoadShield(arena: Arena): Detailed<Arena> {
 
+        if (loadShield <= 0) return none(arena)
+
         val robot = arena.findRobot(player)
         return when {
-
-            loadShield <= 0 -> none(arena)
 
             robot.health <= 0 -> single(arena) { "$player has no health left." }
 
@@ -75,32 +75,26 @@ data class Move(val player: Player,
 
     private fun applyFireCannon(arena: Arena): Detailed<Arena> {
 
+        if (shootDirection == null || shootEnergy <= 0) return none(arena)
+
         val robot = arena.findRobot(player)
         return when {
-
-            shootDirection == null || shootEnergy <= 0 -> none(arena)
 
             robot.health <= 0 -> single(arena) { "$player has no health left." }
 
             robot.energy <= 0 -> single(arena) { "$player has no energy left." }
 
-            else -> {
-                arena.fireCannon(player, shootDirection, shootEnergy).flatMap { (fired, amount) ->
-                    val trajectory = shotTrajectory(fired.findRobot(player).position, shootDirection, arena.bounds)
-                    findRobotHit(fired, trajectory)?.let { fired.takeCannonDamage(it.player, amount) }
-                    ?: single(fired) { "$player doesn't hit anyone" }
-                }
-            }
+            else -> arena.resolveFiring(player, shootDirection, shootEnergy)
         }
     }
 
     private fun applyRamming(arena: Arena): Detailed<Arena> {
 
+        if (ramDirection == null) return none(arena)
+
         val robot = arena.findRobot(player)
 
         return when {
-
-            ramDirection == null -> none(arena)
 
             robot.health <= 0 -> single(arena) { "$player has no health left." }
 
@@ -109,20 +103,4 @@ data class Move(val player: Player,
             else -> arena.resolveRamming(player, ramDirection)
         }
     }
-}
-
-private fun shotTrajectory(pos: Position, direction: Direction, bounds: Bounds) =
-    generateSequence(pos.move(direction, bounds)) {
-        it.move(direction, bounds)
-    }
-
-private fun findRobotHit(arena: Arena, shotTrajectory: Sequence<Position>): Robot? {
-
-    for (position in shotTrajectory) {
-        val candidate = arena.findRobot(position)
-        if (candidate != null) return candidate
-    }
-
-    return null
-}
 }
