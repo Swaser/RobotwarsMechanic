@@ -1,8 +1,10 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Detailed
+import com.noser.robotwars.mechanic.Detailed.Companion.lift
 import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
+import com.noser.robotwars.mechanic.Extensions.before
 
 data class Move(val player: Player,
                 val directions: List<Direction>,
@@ -23,7 +25,7 @@ data class Move(val player: Player,
             .flatMap(this::applyRamming)
     }
 
-    private fun applyDirections(arena: Arena): Detailed<Arena> =
+    fun applyDirections(arena: Arena): Detailed<Arena> =
 
         directions
             .fold(none(arena)) { memo, dir ->
@@ -52,13 +54,13 @@ data class Move(val player: Player,
                                 .addDetail("$player doesn't have enough energy to move $dir ${terrain.preposition} ${terrain.name}")
 
                             else -> memo
-                                .flatMap { it.moveTo(player, newPos, terrain.movementCost) }
+                                .flatMap { anArena -> anArena.moveTo(player, newPos, terrain.movementCost) }
                         }
                     }
                 }
             }
 
-    private fun applyLoadShield(arena: Arena): Detailed<Arena> {
+    fun applyLoadShield(arena: Arena): Detailed<Arena> {
 
         if (loadShield <= 0) return none(arena)
 
@@ -73,7 +75,7 @@ data class Move(val player: Player,
         }
     }
 
-    private fun applyFireCannon(arena: Arena): Detailed<Arena> {
+    fun applyFireCannon(arena: Arena): Detailed<Arena> {
 
         if (shootDirection == null || shootEnergy <= 0) return none(arena)
 
@@ -88,7 +90,7 @@ data class Move(val player: Player,
         }
     }
 
-    private fun applyRamming(arena: Arena): Detailed<Arena> {
+    fun applyRamming(arena: Arena): Detailed<Arena> {
 
         if (ramDirection == null) return none(arena)
 
@@ -103,4 +105,31 @@ data class Move(val player: Player,
             else -> arena.resolveRamming(player, ramDirection)
         }
     }
+}
+
+object Moves {
+
+    val applyMove: (Move) -> (Arena) -> Detailed<Arena> = { move ->
+        { arena ->
+            when {
+                arena.activePlayer == move.player ->
+                    applyDirections(move) before
+                    lift(applyShieldLoading(move)) before
+                    lift(applyFiring(move)) before
+                    lift(applyRamming(move))
+                else -> {
+                    { single(arena) { "It's not ${move.player}'s turn (but ${arena.activePlayer}'s)" } }
+                }
+            }(arena)
+        }
+    }
+
+    fun applyDirections(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
+
+    fun applyShieldLoading(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
+
+    fun applyRamming(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
+
+    fun applyFiring(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
+
 }

@@ -1,6 +1,7 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Async
+import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
 import kotlin.random.Random
@@ -120,7 +121,7 @@ class Bout(private val competitors: (Player) -> Competitor,
                 else -> BoutState.YELLOW_WINS
             }
         } else {
-            val (afterMove, messages) = move.applyTo(arena)
+            val (afterMove, messages) = applyMove(move)(arena)
             arena = afterMove
             // TODO advance active player
             // TODO do something with the messages

@@ -24,5 +24,7 @@ private constructor(val value: T,
         fun <T> none(value: T): Detailed<T> = Detailed(value, emptyList())
 
         fun <T> single(value: T, detail: (T) -> String): Detailed<T> = Detailed(value, listOf(detail(value)))
+
+        fun <U, V> lift(f: (U) -> Detailed<V>): (Detailed<U>) -> Detailed<V> = { it.flatMap(f) }
     }
 }
