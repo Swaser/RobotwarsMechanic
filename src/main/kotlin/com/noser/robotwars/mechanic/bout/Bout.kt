@@ -1,8 +1,11 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Async
+import com.noser.robotwars.mechanic.AsyncFactory
+import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
+import com.noser.robotwars.mechanic.tournament.TournamentParameters
 import kotlin.random.Random
 
 class Bout(private val competitors: (Player) -> Competitor,
@@ -17,42 +20,36 @@ class Bout(private val competitors: (Player) -> Competitor,
         competitors(Player.BLUE)
     )
 
-    fun start(arenaSize: Int,
-              startingEnergy: Int,
-              maxEnergy: Int,
-              startingHealth: Int,
-              startingShield: Int,
-              maxShield: Int) {
+    fun start(parameters: TournamentParameters) {
 
         val random = Random(System.currentTimeMillis())
-        val bounds = Bounds(0..arenaSize, 0..arenaSize)
-        val terrain = createFreshTerrain(bounds, random)
+        val terrain = createFreshTerrain(parameters, random)
 
         arena = Arena(
             Player.YELLOW,
             Player.values()
                 .fold(mutableListOf()) { list, player ->
                     val robot = Robot(player,
-                                      createUniquePosition(bounds, random, list.map(Robot::position)),
-                                      startingEnergy,
-                                      maxEnergy,
-                                      startingHealth,
-                                      startingShield,
-                                      maxShield)
+                                      createUniquePosition(parameters.bounds, random, list.map(Robot::position)),
+                                      parameters.startingEnergy,
+                                      parameters.maxEnergy,
+                                      parameters.startingHealth,
+                                      parameters.startingShield,
+                                      parameters.maxShield)
                     list.add(robot)
                     list
                 }
             ,
-            bounds,
+            parameters.bounds,
             terrain,
-            Effects(terrain.mapAll { _, aTerrain ->
+            terrain.mapAll { _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
                     Effect.burnable()
                 else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
                     Effect.energy(random.nextInt(10) + 1)
                 else
                     Effect.none()
-            })
+            }
         )
 
         state = BoutState.STARTED
@@ -70,42 +67,40 @@ class Bout(private val competitors: (Player) -> Competitor,
         return pos
     }
 
-    private fun conductBout(asyncProvider: (() -> Unit) -> Async<Unit>) {
+    fun conductBout(asyncFactory: AsyncFactory): Async<Player?> {
 
-        when (state) {
+        val res = asyncFactory.deferred<Player?>()
 
-            BoutState.REGISTERED ->
-                asyncProvider {
-                    start(tournament.arenaSize,
-                          tournament.startingEnergy,
-                          tournament.maxEnergy,
-                          tournament.startingHealth,
-                          tournament.startingShield,
-                          tournament.maxShield)
-                }.map {
-                    conductBout(asyncProvider)
+        fun go() {
+            when (state) {
+
+                BoutState.REGISTERED ->
+                    asyncFactory
+                        .supplyAsync { start(tournament.parameters) }
+                        .map { go() }
+                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
+
+                BoutState.STARTED ->
+                    asyncFactory
+                        .supplyAsync { nextMove() }
+                        .map { go() }
+                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
+
+                else -> {
+                    val winner = state.winner()
+                    asyncFactory
+                        .supplyAsync {
+                            Player.values().forEach {
+                                competitors(it).commChannel.publishResult(arena, winner)
+                            }
+                        }
+                        .finally { _, _ -> res.done(winner) }
                 }
-
-            BoutState.STARTED    ->
-                asyncProvider {
-                    nextMove()
-                }.map {
-                    conductBout(asyncProvider)
-                }
-
-            else                 -> asyncProvider {
-                publishResult()
             }
         }
-    }
 
-    private fun publishResult() {
-        competitors(Player.YELLOW)
-            .commChannel
-            .publishResult(
-                arena,
-                state.winner() ?: throw IllegalArgumentException("Bout not yet finished")
-            )
+        go()
+        return res
     }
 
     private fun nextMove() {
@@ -117,10 +112,10 @@ class Bout(private val competitors: (Player) -> Competitor,
         if (move == null) {
             state = when (arena.activePlayer) {
                 Player.YELLOW -> BoutState.BLUE_WINS
-                else          -> BoutState.YELLOW_WINS
+                else -> BoutState.YELLOW_WINS
             }
         } else {
-            val (afterMove, messages) = move.applyTo(arena)
+            val (afterMove, messages) = applyMove(move)(arena)
             arena = afterMove
             // TODO advance active player
             // TODO do something with the messages
@@ -128,20 +123,24 @@ class Bout(private val competitors: (Player) -> Competitor,
             if (winner != null) {
                 state = when (winner) {
                     Player.YELLOW -> BoutState.YELLOW_WINS
-                    else          -> BoutState.BLUE_WINS
+                    else -> BoutState.BLUE_WINS
                 }
             }
         }
     }
 
-    private fun createFreshTerrain(bounds: Bounds, random: Random): Grid<Terrain> {
-        return Grid(bounds) {
-            val rnd = random.nextDouble()
-            when {
-                rnd < tournament.chanceForWater -> Terrain.WATER
-                rnd < tournament.chanceForRock  -> Terrain.ROCK
-                else                            -> Terrain.GREEN
+    companion object {
+
+        private fun createFreshTerrain(parameters: TournamentParameters, random: Random): Grid<Terrain> {
+            return Grid(parameters.bounds) {
+                val rnd = random.nextDouble()
+                when {
+                    rnd < parameters.chanceForWater -> Terrain.WATER
+                    rnd < parameters.chanceForRock -> Terrain.ROCK
+                    else -> Terrain.GREEN
+                }
             }
         }
+
     }
 }

@@ -22,8 +22,8 @@ class CouplerTest {
     private fun conduct(i: Int) {
 
         if (i >= 0)
-            ExcutorAsync
-                .some(Unit)
+            CFAsyncFactory
+                .direct(Unit)
                 .map { a = i }
                 .map { conduct(i - 1) }
     }
