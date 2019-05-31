@@ -1,6 +1,7 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Async
+import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
@@ -71,42 +72,47 @@ class Bout(private val competitors: (Player) -> Competitor,
         return pos
     }
 
-    private fun conductBout(asyncProvider: (() -> Unit) -> Async<Unit>) {
+    fun conductBout(asyncFactory: AsyncFactory): Async<Player?> {
 
-        when (state) {
+        val res = asyncFactory.deferred<Player?>()
 
-            BoutState.REGISTERED ->
-                asyncProvider {
-                    start(tournament.arenaSize,
-                          tournament.startingEnergy,
-                          tournament.maxEnergy,
-                          tournament.startingHealth,
-                          tournament.startingShield,
-                          tournament.maxShield)
-                }.map {
-                    conductBout(asyncProvider)
+        fun go() {
+            when (state) {
+
+                BoutState.REGISTERED ->
+                    asyncFactory
+                        .supplyAsync {
+                            start(tournament.arenaSize,
+                                  tournament.startingEnergy,
+                                  tournament.maxEnergy,
+                                  tournament.startingHealth,
+                                  tournament.startingShield,
+                                  tournament.maxShield)
+                        }
+                        .map { go() }
+                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
+
+                BoutState.STARTED ->
+                    asyncFactory
+                        .supplyAsync { nextMove() }
+                        .map { go() }
+                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
+
+                else -> {
+                    val winner = state.winner()
+                    asyncFactory
+                        .supplyAsync {
+                            Player.values().forEach {
+                                competitors(it).commChannel.publishResult(arena, winner)
+                            }
+                        }
+                        .finally { _, _ -> res.done(winner) }
                 }
-
-            BoutState.STARTED ->
-                asyncProvider {
-                    nextMove()
-                }.map {
-                    conductBout(asyncProvider)
-                }
-
-            else -> asyncProvider {
-                publishResult()
             }
         }
-    }
 
-    private fun publishResult() {
-        competitors(Player.YELLOW)
-            .commChannel
-            .publishResult(
-                arena,
-                state.winner() ?: throw IllegalArgumentException("Bout not yet finished")
-            )
+        go()
+        return res
     }
 
     private fun nextMove() {

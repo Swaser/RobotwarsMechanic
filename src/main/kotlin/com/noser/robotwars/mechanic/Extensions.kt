@@ -6,7 +6,6 @@ object Extensions {
         return f(this.first, this.second)
     }
 
-
     fun <U, V> map(f: (U) -> V): (Iterable<U>) -> Iterable<V> = { us -> us.map(f) }
 
     fun <U, V> flatMap(f: (U) -> Iterable<V>): (Iterable<U>) -> Iterable<V> = { us -> us.flatMap(f) }

@@ -13,18 +13,6 @@ data class Move(val player: Player,
                 val shootEnergy: Int,
                 val ramDirection: Direction?) {
 
-    fun applyTo(arena: Arena): Detailed<Arena> {
-
-        if (player != arena.activePlayer) {
-            return single(arena) { "It's not $player's turn (but ${arena.activePlayer}'s)" }
-        }
-
-        return applyDirections(arena)
-            .flatMap(this::applyLoadShield)
-            .flatMap(this::applyFireCannon)
-            .flatMap(this::applyRamming)
-    }
-
     fun applyDirections(arena: Arena): Detailed<Arena> =
 
         directions
@@ -126,10 +114,9 @@ object Moves {
 
     fun applyDirections(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
 
-    fun applyShieldLoading(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
+    fun applyShieldLoading(move: Move): (Arena) -> Detailed<Arena> = { move.applyLoadShield(it) }
 
-    fun applyRamming(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
+    fun applyRamming(move: Move): (Arena) -> Detailed<Arena> = { move.applyRamming(it) }
 
-    fun applyFiring(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
-
+    fun applyFiring(move: Move): (Arena) -> Detailed<Arena> = { move.applyFireCannon(it) }
 }

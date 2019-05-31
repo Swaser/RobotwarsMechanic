@@ -11,5 +11,8 @@ interface CommChannel {
      */
     fun nextMove(arena: Arena) : Move?
 
-    fun publishResult(arena: Arena, winner : Player)
+    /** null means draw */
+    fun publishResult(arena: Arena, winner : Player?)
+
+    fun publishErrorHappened(arena: Arena, throwable: Throwable)
 }

@@ -30,7 +30,7 @@ class MoveTest {
                         Direction.S, 2,
                         Direction.S)
 
-        val (updated, messages) = move.applyTo(arena)
+        val (updated, messages) = Moves.applyMove(move)(arena)
 
         messages.forEach(::println)
 
