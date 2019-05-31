@@ -4,5 +4,4 @@ Contains the logic, including tournament mechanics, of the Robot Wars game platf
 
 ## TODO
 
-1. Async needs a way to handle exceptions (see for example Observable in RxJava)
-1. Simulate a complete Bout
+1. Handle Exceptions in Tournaments and Competitors that are not reachable using maxRetries and such

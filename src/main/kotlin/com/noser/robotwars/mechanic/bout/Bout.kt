@@ -5,6 +5,7 @@ import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
+import com.noser.robotwars.mechanic.tournament.TournamentParameters
 import kotlin.random.Random
 
 class Bout(private val competitors: (Player) -> Competitor,
@@ -19,33 +20,27 @@ class Bout(private val competitors: (Player) -> Competitor,
         competitors(Player.BLUE)
     )
 
-    fun start(arenaSize: Int,
-              startingEnergy: Int,
-              maxEnergy: Int,
-              startingHealth: Int,
-              startingShield: Int,
-              maxShield: Int) {
+    fun start(parameters: TournamentParameters) {
 
         val random = Random(System.currentTimeMillis())
-        val bounds = Bounds(0..arenaSize, 0..arenaSize)
-        val terrain = createFreshTerrain(bounds, random)
+        val terrain = createFreshTerrain(parameters, random)
 
         arena = Arena(
             Player.YELLOW,
             Player.values()
                 .fold(mutableListOf()) { list, player ->
                     val robot = Robot(player,
-                                      createUniquePosition(bounds, random, list.map(Robot::position)),
-                                      startingEnergy,
-                                      maxEnergy,
-                                      startingHealth,
-                                      startingShield,
-                                      maxShield)
+                                      createUniquePosition(parameters.bounds, random, list.map(Robot::position)),
+                                      parameters.startingEnergy,
+                                      parameters.maxEnergy,
+                                      parameters.startingHealth,
+                                      parameters.startingShield,
+                                      parameters.maxShield)
                     list.add(robot)
                     list
                 }
             ,
-            bounds,
+            parameters.bounds,
             terrain,
             terrain.mapAll { _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
@@ -81,14 +76,7 @@ class Bout(private val competitors: (Player) -> Competitor,
 
                 BoutState.REGISTERED ->
                     asyncFactory
-                        .supplyAsync {
-                            start(tournament.arenaSize,
-                                  tournament.startingEnergy,
-                                  tournament.maxEnergy,
-                                  tournament.startingHealth,
-                                  tournament.startingShield,
-                                  tournament.maxShield)
-                        }
+                        .supplyAsync { start(tournament.parameters) }
                         .map { go() }
                         .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
 
@@ -141,14 +129,18 @@ class Bout(private val competitors: (Player) -> Competitor,
         }
     }
 
-    private fun createFreshTerrain(bounds: Bounds, random: Random): Grid<Terrain> {
-        return Grid(bounds) {
-            val rnd = random.nextDouble()
-            when {
-                rnd < tournament.chanceForWater -> Terrain.WATER
-                rnd < tournament.chanceForRock -> Terrain.ROCK
-                else -> Terrain.GREEN
+    companion object {
+
+        private fun createFreshTerrain(parameters: TournamentParameters, random: Random): Grid<Terrain> {
+            return Grid(parameters.bounds) {
+                val rnd = random.nextDouble()
+                when {
+                    rnd < parameters.chanceForWater -> Terrain.WATER
+                    rnd < parameters.chanceForRock -> Terrain.ROCK
+                    else -> Terrain.GREEN
+                }
             }
         }
+
     }
 }

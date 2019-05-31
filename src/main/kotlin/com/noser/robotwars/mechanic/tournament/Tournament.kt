@@ -1,32 +1,42 @@
 package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
+import com.noser.robotwars.mechanic.Extensions.before
+import com.noser.robotwars.mechanic.Extensions.forEach
+import com.noser.robotwars.mechanic.bout.Bounds
 import com.noser.robotwars.mechanic.bout.Bout
 
-class Tournament(val competitors: List<Competitor>,
-                 val arenaSize: Int,
-                 val startingEnergy: Int,
-                 val chanceForWater: Double,
-                 val chanceForRock: Double,
-                 val maxEnergy: Int,
-                 val startingHealth: Int,
-                 val startingShield: Int,
-                 val maxShield: Int,
+data class TournamentParameters(val bounds : Bounds,
+                                val startingEnergy: Int,
+                                val chanceForWater: Double,
+                                val chanceForRock: Double,
+                                val maxEnergy: Int,
+                                val startingHealth: Int,
+                                val startingShield: Int,
+                                val maxShield: Int)
+
+class Tournament(private val competitors: List<Competitor>,
+                 val parameters: TournamentParameters,
                  private val asyncFactory: AsyncFactory) {
 
+    /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts() {
-        findFreeCompetitors()
-            .let(::findStartableBouts)
-            .forEach { bout ->
-                registerBoutStarted(bout)
-                bout.conductBout(asyncFactory)
-                    .finally { _, throwable ->
-                        if (throwable == null) {
-                            registerBoutEnded(bout)
-                        } else {
-                            TODO()
-                        }
-                    }
+
+        (this::findFreeCompetitors before
+        this::findStartableBouts before
+        forEach(this::startBout))()
+    }
+
+    @Synchronized
+    private fun startBout(bout: Bout): Unit {
+        registerBoutStarted(bout)
+        bout.conductBout(asyncFactory)
+            .finally { _, throwable ->
+                if (throwable == null) {
+                    registerBoutEnded(bout)
+                } else {
+                    TODO()
+                }
             }
     }
 
