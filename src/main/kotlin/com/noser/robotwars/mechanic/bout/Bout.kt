@@ -15,10 +15,7 @@ class Bout(private val competitors: (Player) -> Competitor,
     @Volatile
     lateinit var arena: Arena
 
-    fun competitors(): List<Competitor> = listOf(
-        competitors(Player.YELLOW),
-        competitors(Player.BLUE)
-    )
+    fun competitors(): List<Competitor> = listOf(competitors(Player.YELLOW), competitors(Player.BLUE))
 
     fun start(parameters: TournamentParameters) {
 

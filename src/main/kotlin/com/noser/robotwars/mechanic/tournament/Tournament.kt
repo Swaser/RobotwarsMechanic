@@ -3,21 +3,34 @@ package com.noser.robotwars.mechanic.tournament
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.Extensions.before
 import com.noser.robotwars.mechanic.Extensions.forEach
-import com.noser.robotwars.mechanic.bout.Bounds
 import com.noser.robotwars.mechanic.bout.Bout
-
-data class TournamentParameters(val bounds : Bounds,
-                                val startingEnergy: Int,
-                                val chanceForWater: Double,
-                                val chanceForRock: Double,
-                                val maxEnergy: Int,
-                                val startingHealth: Int,
-                                val startingShield: Int,
-                                val maxShield: Int)
+import com.noser.robotwars.mechanic.bout.Player
 
 class Tournament(private val competitors: List<Competitor>,
                  val parameters: TournamentParameters,
                  private val asyncFactory: AsyncFactory) {
+
+    private val bouts: Map<Competitor, MutableList<Bout>> =
+        competitors.associate { playerOne ->
+            Pair(playerOne,
+                 competitors
+                     .filter { it != playerOne }
+                     .map { playerTwo ->
+                         Bout(makePlayers(playerOne, playerTwo), this)
+                     }.toMutableList())
+        }
+
+    private val completedBouts : MutableList<Bout> = mutableListOf()
+
+    private fun makePlayers(playerOne: Competitor,
+                            playerTwo: Competitor): (Player) -> Competitor {
+        return {
+            when (it) {
+                Player.YELLOW -> playerOne
+                Player.BLUE -> playerTwo
+            }
+        }
+    }
 
     /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts() {
