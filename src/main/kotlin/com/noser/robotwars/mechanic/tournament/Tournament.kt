@@ -10,18 +10,17 @@ class Tournament(competitors: Set<Competitor>,
                  val parameters: TournamentParameters,
                  private val asyncFactory: AsyncFactory) {
 
-    private val openBouts: MutableList<Bout> =
+    private var openBouts: List<Bout> =
         competitors
             .flatMap { c1 -> competitors.map { c2 -> Pair(c1, c2) } }
             .filter { (c1, c2) -> c1 != c2 }
             .map { (c1, c2) -> Bout(makePlayers(c1, c2), this) }
-            .toMutableList()
 
-    private val completedBouts: MutableList<Bout> = mutableListOf()
+    private var completedBouts: List<Bout> = emptyList()
 
-    private val notPlaying: MutableSet<Competitor> = competitors.toMutableSet()
+    private var notPlaying: Set<Competitor> = competitors
 
-    private val playing: MutableSet<Competitor> = mutableSetOf()
+    private var playing: Set<Competitor> = emptySet()
 
     /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts() {
@@ -46,7 +45,7 @@ class Tournament(competitors: Set<Competitor>,
     @Synchronized
     private fun registerBoutStarted(bout: Bout) {
 
-        bout.competitors().forEach(this::markCompetitorOccupied)
+        markCompetitorPlaying(bout.competitors())
 
         // do other stuff like an entry into the current bouts table or so
 
@@ -56,7 +55,7 @@ class Tournament(competitors: Set<Competitor>,
     @Synchronized
     private fun registerBoutEnded(bout: Bout) {
 
-        bout.competitors().forEach(this::markCompetitorFree)
+        markCompetitorNotPlaying(bout.competitors())
 
         // do other stuff like an entry into the completed bout table
 
@@ -65,21 +64,38 @@ class Tournament(competitors: Set<Competitor>,
 
     @Synchronized
     fun findStartableBouts(): List<Bout> {
+
         val res: MutableList<Bout> = mutableListOf()
-        for ((c1, c2) in generatePairs(notPlaying)) {
-            
+        val players = notPlaying.toMutableSet()
+        for (openBout in openBouts) {
+            if (players.isEmpty()) continue
+            if (players.containsAll(openBout.competitors())) {
+                res.add(openBout)
+                players.removeAll(openBout.competitors())
+            }
         }
-        TODO()
+
+        return res
     }
 
     @Synchronized
-    fun markCompetitorOccupied(competitor: Competitor) {
-        TODO()
+    fun markCompetitorPlaying(competitors: Collection<Competitor>) {
+
+        check(notPlaying.containsAll(competitors))
+        check(competitors.none { playing.contains(it) })
+
+        notPlaying = notPlaying - competitors
+        playing = playing + competitors
     }
 
     @Synchronized
-    fun markCompetitorFree(competitor: Competitor) {
-        TODO()
+    fun markCompetitorNotPlaying(competitors: Collection<Competitor>) {
+
+        check(playing.containsAll(competitors))
+        check(competitors.none { notPlaying.contains(it) })
+
+        notPlaying = notPlaying + competitors
+        playing = playing - competitors
     }
 
     companion object {
@@ -93,15 +109,15 @@ class Tournament(competitors: Set<Competitor>,
             }
         }
 
-        private fun <X> generatePairs(xs : Iterable<X>) : Sequence<Pair<X,X>> {
+        private fun <X> generatePairs(xs: Iterable<X>): Sequence<Pair<X, X>> {
 
             val xList = xs.toList()
             if (xList.size < 2) return emptySequence()
 
             return xs
                 .asSequence()
-                .flatMap { x -> xs.asSequence().map { y -> Pair(x,y) } }
-                .filter { (x,y) -> x != y }
+                .flatMap { x -> xs.asSequence().map { y -> Pair(x, y) } }
+                .filter { (x, y) -> x != y }
         }
 
     }
