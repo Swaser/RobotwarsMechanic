@@ -13,21 +13,21 @@ data class Move(val player: Player,
                 val shootEnergy: Int,
                 val ramDirection: Direction?) {
 
-    fun applyDirections(arena: Arena): Detailed<Arena> =
+    fun applyDirections(arena: Arena): Detailed<Arena> {
 
-        directions
-            .fold(none(arena)) { memo, dir ->
+        val (distanceTravelled, directionsApplied) = directions
+            .fold(Pair(0, none(arena))) { (dist, memo), dir ->
 
                 val robot = memo.value.findRobot(player)
                 val newPos = robot.position.move(dir, arena.bounds)
 
                 when {
 
-                    robot.health <= 0 -> return memo.addDetail("$player has no health left.")
+                    robot.health <= 0 -> Pair(dist, memo.addDetail("$player has no health left."))
 
-                    robot.energy <= 0 -> return memo.addDetail("$player has no energy left.")
+                    robot.energy <= 0 -> Pair(dist, memo.addDetail("$player has no energy left."))
 
-                    newPos == null -> memo.addDetail("$player cannot move $dir out of terrain.")
+                    newPos == null -> Pair(dist, memo.addDetail("$player cannot move $dir out of terrain."))
 
                     else -> {
 
@@ -35,18 +35,24 @@ data class Move(val player: Player,
                         val terrain = memo.value.terrain[newPos]
 
                         when {
-                            occupyingRobot != null -> memo
-                                .addDetail("$player cannot move $dir ${terrain.preposition} ${terrain.name} occupied by ${occupyingRobot.player}.")
+                            occupyingRobot != null -> Pair(dist, memo
+                                .addDetail("$player cannot move $dir ${terrain.preposition} ${terrain.name} occupied by ${occupyingRobot.player}."))
 
-                            robot.energy < terrain.movementCost -> memo
-                                .addDetail("$player doesn't have enough energy to move $dir ${terrain.preposition} ${terrain.name}")
+                            robot.energy < terrain.movementCost -> Pair(dist, memo
+                                .addDetail("$player doesn't have enough energy to move $dir ${terrain.preposition} ${terrain.name}"))
 
-                            else -> memo
-                                .flatMap { anArena -> anArena.moveTo(player, newPos, terrain.movementCost) }
+                            else -> Pair(dist + 1, memo.flatMap { it.moveTo(player, newPos, terrain.movementCost) })
                         }
                     }
                 }
             }
+
+        if (distanceTravelled == 0) {
+            return directionsApplied.flatMap { it.applyEffects(player) }
+        }
+
+        return directionsApplied
+    }
 
     fun applyLoadShield(arena: Arena): Detailed<Arena> {
 

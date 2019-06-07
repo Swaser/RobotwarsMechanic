@@ -107,7 +107,7 @@ data class Arena(val activePlayer: Player,
         return null
     }
 
-    private fun applyEffects(player: Player): Detailed<Arena> {
+    fun applyEffects(player: Player): Detailed<Arena> {
         val robot = findRobot(player)
         return when (effects[robot.position]) {
             is Effect.Fire -> single(this) { "$player is in fire" }.flatMap {
