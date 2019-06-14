@@ -2,9 +2,8 @@ package com.noser.robotwars.mechanic.tournament
 
 import java.util.*
 
-class Competitor(val id: UUID,
-                 val commChannel: CommChannel) {
-
+data class Competitor(val id: UUID,
+                      val commChannel: CommChannel) {
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

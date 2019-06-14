@@ -6,18 +6,60 @@ import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
+import java.util.*
 import kotlin.random.Random
 
-class Bout(private val competitors: (Player) -> Competitor,
+/**
+ * The bout gets its own unique id so it can easily identified
+ */
+class Bout(private val getCompetitor: (Player) -> Competitor,
            private val tournament: Tournament,
            @Volatile var state: BoutState = BoutState.REGISTERED) {
+
+    private val id: UUID = UUID.randomUUID()
 
     @Volatile
     lateinit var arena: Arena
 
-    fun competitors(): List<Competitor> = listOf(competitors(Player.YELLOW), competitors(Player.BLUE))
+    val competitors = listOf(getCompetitor(Player.YELLOW), getCompetitor(Player.BLUE))
 
-    fun start(parameters: TournamentParameters) {
+    fun conductBout(asyncFactory: AsyncFactory): Async<Player?> {
+
+        val res = asyncFactory.deferred<Player?>()
+
+        fun go() {
+            when (state) {
+
+                BoutState.REGISTERED ->
+                    asyncFactory
+                        .supplyAsync { start(tournament.parameters) }
+                        .map { go() }
+                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
+
+                BoutState.STARTED ->
+                    asyncFactory
+                        .supplyAsync { nextMove() }
+                        .map { go() }
+                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
+
+                else -> {
+                    val winner = state.winner()
+                    asyncFactory
+                        .supplyAsync {
+                            Player.values().forEach {
+                                getCompetitor(it).commChannel.publishResult(arena, winner)
+                            }
+                        }
+                        .finally { _, _ -> res.done(winner) }
+                }
+            }
+        }
+
+        go()
+        return res
+    }
+
+    private fun start(parameters: TournamentParameters) {
 
         val random = Random(System.currentTimeMillis())
         val terrain = createFreshTerrain(parameters, random)
@@ -64,45 +106,9 @@ class Bout(private val competitors: (Player) -> Competitor,
         return pos
     }
 
-    fun conductBout(asyncFactory: AsyncFactory): Async<Player?> {
-
-        val res = asyncFactory.deferred<Player?>()
-
-        fun go() {
-            when (state) {
-
-                BoutState.REGISTERED ->
-                    asyncFactory
-                        .supplyAsync { start(tournament.parameters) }
-                        .map { go() }
-                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
-
-                BoutState.STARTED ->
-                    asyncFactory
-                        .supplyAsync { nextMove() }
-                        .map { go() }
-                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
-
-                else -> {
-                    val winner = state.winner()
-                    asyncFactory
-                        .supplyAsync {
-                            Player.values().forEach {
-                                competitors(it).commChannel.publishResult(arena, winner)
-                            }
-                        }
-                        .finally { _, _ -> res.done(winner) }
-                }
-            }
-        }
-
-        go()
-        return res
-    }
-
     private fun nextMove() {
 
-        val move = competitors(arena.activePlayer)
+        val move = getCompetitor(arena.activePlayer)
             .commChannel
             .nextMove(arena)
 
@@ -124,6 +130,21 @@ class Bout(private val competitors: (Player) -> Competitor,
                 }
             }
         }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as Bout
+
+        if (id != other.id) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return id.hashCode()
     }
 
     companion object {
