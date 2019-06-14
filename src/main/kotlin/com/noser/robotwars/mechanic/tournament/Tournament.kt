@@ -6,49 +6,54 @@ import com.noser.robotwars.mechanic.Extensions.forEach
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Player
 
-class Tournament(private val competitors: List<Competitor>,
+class Tournament(competitors: Set<Competitor>,
                  val parameters: TournamentParameters,
                  private val asyncFactory: AsyncFactory) {
 
-    private val bouts: Map<Competitor, MutableList<Bout>> =
-        competitors.associate { playerOne ->
-            Pair(playerOne,
-                 competitors
-                     .filter { it != playerOne }
-                     .map { playerTwo ->
-                         Bout(makePlayers(playerOne, playerTwo), this)
-                     }.toMutableList())
-        }
+    private val openBouts: MutableSet<Bout> =
+        generatePairs(competitors.asSequence())
+            .map { (c1, c2) -> Bout(makePlayers(c1, c2), this) }
+            .toMutableSet()
 
-    private val completedBouts : MutableList<Bout> = mutableListOf()
+    private val runningBouts = mutableSetOf<Bout>()
 
-    private fun makePlayers(playerOne: Competitor,
-                            playerTwo: Competitor): (Player) -> Competitor {
-        return {
-            when (it) {
-                Player.YELLOW -> playerOne
-                Player.BLUE -> playerTwo
-            }
-        }
-    }
+    private val completedBouts = mutableSetOf<Bout>()
+
+    private val notPlaying = competitors.toMutableSet()
 
     /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts() {
 
-        (this::findFreeCompetitors before
-        this::findStartableBouts before
+        (this::findStartableBouts before
         forEach(this::startBout))()
     }
 
     @Synchronized
-    private fun startBout(bout: Bout): Unit {
+    fun findStartableBouts(): List<Bout> {
+
+        val res: MutableList<Bout> = mutableListOf()
+        val players = notPlaying.toMutableSet()
+        for (openBout in openBouts) {
+            if (players.size < 2) continue
+            if (players.containsAll(openBout.competitors)) {
+                res.add(openBout)
+                players.removeAll(openBout.competitors)
+            }
+        }
+
+        return res
+    }
+
+    @Synchronized
+    private fun startBout(bout: Bout) {
         registerBoutStarted(bout)
         bout.conductBout(asyncFactory)
             .finally { _, throwable ->
                 if (throwable == null) {
                     registerBoutEnded(bout)
                 } else {
-                    TODO()
+                    // TODO put it into some intermediate state
+                    // TODO allow the reason to be analyzed and the bout to be retried OR the bout to be resolved manually
                 }
             }
     }
@@ -56,36 +61,58 @@ class Tournament(private val competitors: List<Competitor>,
     @Synchronized
     private fun registerBoutStarted(bout: Bout) {
 
-        bout.competitors().forEach(this::markCompetitorOccupied)
+        markCompetitorPlaying(bout.competitors)
 
-        // do other stuff like an entry into the current bouts table or so
-
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        runningBouts.add(bout)
+        openBouts.remove(bout)
     }
 
     @Synchronized
     private fun registerBoutEnded(bout: Bout) {
 
-        bout.competitors().forEach(this::markCompetitorFree)
+        markCompetitorNotPlaying(bout.competitors)
 
-        // do other stuff like an entry into the completed bout table
+        runningBouts.remove(bout)
+        completedBouts.add(bout)
 
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        updateStatistics(bout)
+    }
+
+    private fun updateStatistics(bout: Bout) {
+        check(bout.state.winner() != null)
+
+        // TODO update statistics so it can easily be displayed
     }
 
     @Synchronized
-    fun findFreeCompetitors(): List<Competitor> = TODO()
+    fun markCompetitorPlaying(competitors: Collection<Competitor>) {
 
-    @Synchronized
-    fun findStartableBouts(competitors: List<Competitor>): List<Bout> = TODO()
+        check(notPlaying.containsAll(competitors))
 
-    @Synchronized
-    fun markCompetitorOccupied(competitor: Competitor) {
-        TODO()
+        notPlaying.removeAll(competitors)
     }
 
     @Synchronized
-    fun markCompetitorFree(competitor: Competitor) {
-        TODO()
+    fun markCompetitorNotPlaying(competitors: Collection<Competitor>) {
+
+        check(competitors.none { notPlaying.contains(it) })
+
+        notPlaying.addAll(competitors)
+    }
+
+    companion object {
+
+        private fun makePlayers(c1: Competitor, c2: Competitor): (Player) -> Competitor {
+            return {
+                when (it) {
+                    Player.YELLOW -> c1
+                    Player.BLUE -> c2
+                }
+            }
+        }
+
+        private fun <X> generatePairs(xs: Sequence<X>) = xs
+            .flatMap { x -> xs.map { y -> Pair(x, y) } }
+            .filter { (x, y) -> x != y }
     }
 }
