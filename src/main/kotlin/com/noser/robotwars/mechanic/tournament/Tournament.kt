@@ -1,14 +1,11 @@
 package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
-import com.noser.robotwars.mechanic.Extensions.before
-import com.noser.robotwars.mechanic.Extensions.forEach
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Player
 
 class Tournament(competitors: Set<Competitor>,
-                 val parameters: TournamentParameters,
-                 private val asyncFactory: AsyncFactory) {
+                 val parameters: TournamentParameters) {
 
     private val openBouts: MutableSet<Bout> =
         generatePairs(competitors.asSequence())
@@ -21,11 +18,14 @@ class Tournament(competitors: Set<Competitor>,
 
     private val notPlaying = competitors.toMutableSet()
 
-    /** call this fun repeatedly until tournament done */
-    fun startNextRoundOfBouts() {
+    fun getStatistics() : TournamentStatistics = TODO()
 
-        (this::findStartableBouts before
-        forEach(this::startBout))()
+    /** call this fun repeatedly until tournament done */
+    fun startNextRoundOfBouts(asyncFactory: AsyncFactory) {
+
+        asyncFactory.supplyAsync {
+            findStartableBouts().forEach { startBout(it, asyncFactory) }
+        }
     }
 
     @Synchronized
@@ -45,7 +45,7 @@ class Tournament(competitors: Set<Competitor>,
     }
 
     @Synchronized
-    private fun startBout(bout: Bout) {
+    private fun startBout(bout: Bout, asyncFactory: AsyncFactory) {
         registerBoutStarted(bout)
         bout.conductBout(asyncFactory)
             .finally { _, throwable ->
