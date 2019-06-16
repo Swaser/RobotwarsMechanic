@@ -4,7 +4,8 @@ import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Player
 
-class Tournament(competitors: Set<Competitor>,
+class Tournament(val tournamentName: String,
+                 competitors: Set<Competitor>,
                  val parameters: TournamentParameters) {
 
     private val openBouts: MutableSet<Bout> =
