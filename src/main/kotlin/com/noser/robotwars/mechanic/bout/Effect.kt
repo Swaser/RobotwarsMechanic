@@ -14,7 +14,7 @@ sealed class Effect {
 
     class None : Effect()
 
-    class Fire(val amount : Int) : Effect()
+    class Fire(val amount: Int) : Effect()
 
     class Burnable : Effect()
 
@@ -31,9 +31,9 @@ sealed class Effect {
         val FIRE = Fire(1)
         val BURNABLE = Burnable()
 
-        fun none() : Effect = NONE
-        fun fire() : Effect = FIRE
-        fun burnable() : Effect = BURNABLE
-        fun energy(amount : Int) : Effect = Energy(amount)
+        fun none(): Effect = NONE
+        fun fire(): Effect = FIRE
+        fun burnable(): Effect = BURNABLE
+        fun energy(amount: Int): Effect = Energy(amount)
     }
 }

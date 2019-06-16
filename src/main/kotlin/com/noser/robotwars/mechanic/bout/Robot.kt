@@ -2,9 +2,10 @@ package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Detailed
 import com.noser.robotwars.mechanic.Detailed.Companion.single
+import com.noser.robotwars.mechanic.tournament.Competitor
 import kotlin.math.min
 
-class Robot(val player: Player,
+class Robot(val competitor: Competitor,
             val position: Position,
             val energy: Int,
             val maxEnergy: Int,
@@ -25,7 +26,7 @@ class Robot(val player: Player,
                        shield: Int? = null,
                        health: Int? = null,
                        position: Position? = null): Robot =
-        Robot(player,
+        Robot(competitor,
               position ?: this.position,
               energy ?: this.energy,
               maxEnergy,
@@ -39,7 +40,7 @@ class Robot(val player: Player,
         check(energy >= energyCost) { "Robot doesn't have enough energy to move" }
         return single(update(energy - energyCost, position = pos)) {
             val action = if (energyCost == 0) "is pushed" else "moves"
-            "$player $action to $pos (E=${it.energy},S=${it.shield},H=${it.health})"
+            "$competitor $action to $pos (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
@@ -48,7 +49,7 @@ class Robot(val player: Player,
         val shieldDmg = min(shield, amount)
         val healthDmg = amount - shieldDmg
         return single(update(shield = shield - shieldDmg, health = health - healthDmg)) {
-            "$player takes $amount damage ($shieldDmg to shield) (E=${it.energy},S=${it.shield},H=${it.health})"
+            "$competitor takes $amount damage ($shieldDmg to shield) (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
@@ -56,14 +57,14 @@ class Robot(val player: Player,
         check(amount >= 0) { "energy cannot be negative" }
         val actual = min(maxEnergy - energy, amount)
         return single(update(energy + actual)) {
-            "$player receives $actual ($amount) energy (E=${it.energy},S=${it.shield},H=${it.health})"
+            "$competitor receives $actual ($amount) energy (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
-    fun ram(dir : Direction) : Detailed<Robot> {
+    fun ram(dir: Direction): Detailed<Robot> {
         check(energy >= 1) { "robot must have at least 1 energy to ram" }
         return single(update(energy - 1)) {
-            "$player rams $dir  (E=${it.energy},S=${it.shield},H=${it.health})"
+            "$competitor rams $dir  (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
@@ -71,7 +72,7 @@ class Robot(val player: Player,
         check(amount >= 0) { "shield load amount cannot be negative" }
         val actual = min(min(energy, maxShield - shield), amount)
         return single(update(energy - actual, shield = shield + actual)) {
-            "$player loads shield by $actual ($amount) (E=${it.energy},S=${it.shield},H=${it.health})"
+            "$competitor loads shield by $actual ($amount) (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
@@ -79,7 +80,13 @@ class Robot(val player: Player,
         check(amount >= 0) { "fire cannon amount cannot be negative" }
         val actual = min(energy, amount)
         return single(Pair(update(energy - actual), actual)) { (it, _) ->
-            "$player fires cannon $dir for $actual ($amount) (E=${it.energy},S=${it.shield},H=${it.health})"
+            "$competitor fires cannon $dir for $actual ($amount) (E=${it.energy},S=${it.shield},H=${it.health})"
+        }
+    }
+
+    fun terminate(): Detailed<Pair<Robot, Int>> {
+        return single(Pair(update(health = 0), health)) { (it, _) ->
+            "$competitor has been terminated (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 }

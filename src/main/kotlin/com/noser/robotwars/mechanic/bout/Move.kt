@@ -5,8 +5,9 @@ import com.noser.robotwars.mechanic.Detailed.Companion.lift
 import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
 import com.noser.robotwars.mechanic.Extensions.before
+import com.noser.robotwars.mechanic.tournament.Competitor
 
-data class Move(val player: Player,
+data class Move(val competitor: Competitor,
                 val directions: List<Direction>,
                 val loadShield: Int,
                 val shootDirection: Direction?,
@@ -18,16 +19,16 @@ data class Move(val player: Player,
         val (distanceTravelled, directionsApplied) = directions
             .fold(Pair(0, none(arena))) { (dist, memo), dir ->
 
-                val robot = memo.value.findRobot(player)
+                val robot = memo.value.findRobot(competitor)
                 val newPos = robot.position.move(dir, arena.bounds)
 
                 when {
 
-                    robot.health <= 0 -> Pair(dist, memo.addDetail("$player has no health left."))
+                    robot.health <= 0 -> Pair(dist, memo.addDetail("$competitor has no health left."))
 
-                    robot.energy <= 0 -> Pair(dist, memo.addDetail("$player has no energy left."))
+                    robot.energy <= 0 -> Pair(dist, memo.addDetail("$competitor has no energy left."))
 
-                    newPos == null -> Pair(dist, memo.addDetail("$player cannot move $dir out of terrain."))
+                    newPos == null -> Pair(dist, memo.addDetail("$competitor cannot move $dir out of terrain."))
 
                     else -> {
 
@@ -36,19 +37,19 @@ data class Move(val player: Player,
 
                         when {
                             occupyingRobot != null -> Pair(dist, memo
-                                .addDetail("$player cannot move $dir ${terrain.preposition} ${terrain.name} occupied by ${occupyingRobot.player}."))
+                                .addDetail("$competitor cannot move $dir ${terrain.preposition} ${terrain.name} occupied by ${occupyingRobot.competitor}."))
 
                             robot.energy < terrain.movementCost -> Pair(dist, memo
-                                .addDetail("$player doesn't have enough energy to move $dir ${terrain.preposition} ${terrain.name}"))
+                                .addDetail("$competitor doesn't have enough energy to move $dir ${terrain.preposition} ${terrain.name}"))
 
-                            else -> Pair(dist + 1, memo.flatMap { it.moveTo(player, newPos, terrain.movementCost) })
+                            else -> Pair(dist + 1, memo.flatMap { it.moveTo(competitor, newPos, terrain.movementCost) })
                         }
                     }
                 }
             }
 
         if (distanceTravelled == 0) {
-            return directionsApplied.flatMap { it.applyEffects(player) }
+            return directionsApplied.flatMap { it.applyEffects(competitor) }
         }
 
         return directionsApplied
@@ -58,14 +59,14 @@ data class Move(val player: Player,
 
         if (loadShield <= 0) return none(arena)
 
-        val robot = arena.findRobot(player)
+        val robot = arena.findRobot(competitor)
         return when {
 
-            robot.health <= 0 -> single(arena) { "$player has no health left." }
+            robot.health <= 0 -> single(arena) { "$competitor has no health left." }
 
-            robot.energy <= 0 -> single(arena) { "$player has no energy left." }
+            robot.energy <= 0 -> single(arena) { "$competitor has no energy left." }
 
-            else -> arena.loadShield(player, loadShield)
+            else -> arena.loadShield(competitor, loadShield)
         }
     }
 
@@ -73,14 +74,14 @@ data class Move(val player: Player,
 
         if (shootDirection == null || shootEnergy <= 0) return none(arena)
 
-        val robot = arena.findRobot(player)
+        val robot = arena.findRobot(competitor)
         return when {
 
-            robot.health <= 0 -> single(arena) { "$player has no health left." }
+            robot.health <= 0 -> single(arena) { "$competitor has no health left." }
 
-            robot.energy <= 0 -> single(arena) { "$player has no energy left." }
+            robot.energy <= 0 -> single(arena) { "$competitor has no energy left." }
 
-            else -> arena.resolveFiring(player, shootDirection, shootEnergy)
+            else -> arena.resolveFiring(competitor, shootDirection, shootEnergy)
         }
     }
 
@@ -88,15 +89,15 @@ data class Move(val player: Player,
 
         if (ramDirection == null) return none(arena)
 
-        val robot = arena.findRobot(player)
+        val robot = arena.findRobot(competitor)
 
         return when {
 
-            robot.health <= 0 -> single(arena) { "$player has no health left." }
+            robot.health <= 0 -> single(arena) { "$competitor has no health left." }
 
-            robot.energy <= 0 -> single(arena) { "$player has no energy left." }
+            robot.energy <= 0 -> single(arena) { "$competitor has no energy left." }
 
-            else -> arena.resolveRamming(player, ramDirection)
+            else -> arena.resolveRamming(competitor, ramDirection)
         }
     }
 }
@@ -104,17 +105,10 @@ data class Move(val player: Player,
 object Moves {
 
     val applyMove: (Move) -> (Arena) -> Detailed<Arena> = { move ->
-        { arena ->
-            when {
-                arena.activePlayer == move.player ->
-                    applyDirections(move) before
+        { arena -> (applyDirections(move) before
                     lift(applyShieldLoading(move)) before
                     lift(applyFiring(move)) before
-                    lift(applyRamming(move))
-                else -> {
-                    { single(arena) { "It's not ${move.player}'s turn (but ${arena.activePlayer}'s)" } }
-                }
-            }(arena)
+                    lift(applyRamming(move)))(arena)
         }
     }
 

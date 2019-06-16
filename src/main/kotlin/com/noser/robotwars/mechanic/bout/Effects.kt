@@ -10,19 +10,19 @@ class Effects(private val grid: Grid<Effect>) {
 
         when (val effect = grid[robot.position]) {
 
-            is Effect.Fire   -> robot.takeDamage(effect.amount).flatMap { burned ->
+            is Effect.Fire -> robot.takeDamage(effect.amount).flatMap { burned ->
                 none(Pair(burned, this))
             }
 
             is Effect.Energy -> {
                 single(robot.addEnergy(effect.amount)) { (updated, amount) ->
-                    "${updated.player} absorbed $amount energy to ${updated.energy}"
+                    "${updated.competitor} absorbed $amount energy to ${updated.energy}"
                 }.flatMap { (updated, _) ->
                     none(Pair(updated, Effects(grid.mapOne(robot.position) { Effect.none() })))
                 }
             }
 
-            else             -> none(Pair(robot, this))
+            else -> none(Pair(robot, this))
         }
 
     fun robotHit(robot: Robot): Detailed<Pair<Robot, Effects>> {

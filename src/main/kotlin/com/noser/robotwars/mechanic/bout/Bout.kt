@@ -2,52 +2,63 @@ package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.Async
 import com.noser.robotwars.mechanic.AsyncFactory
+import com.noser.robotwars.mechanic.bout.BoutState.FINISHED
+import com.noser.robotwars.mechanic.bout.BoutState.REGISTERED
+import com.noser.robotwars.mechanic.bout.BoutState.STARTED
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
-import com.noser.robotwars.mechanic.tournament.Tournament
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
 import java.util.*
 import kotlin.random.Random
 
 /**
- * The bout gets its own unique id so it can easily identified
+ * The bout gets its own unique id so it can easily be identified
  */
-class Bout(private val getCompetitor: (Player) -> Competitor,
-           private val tournament: Tournament,
-           @Volatile var state: BoutState = BoutState.REGISTERED) {
+class Bout(val competitors: List<Competitor>,
+           private val tournamentParameters: TournamentParameters) {
 
-    private val id: UUID = UUID.randomUUID()
+    val uuid: UUID = UUID.randomUUID()
+
+    var activeCompetitor: Competitor = competitors.first()
+        private set
+
+    @Volatile
+    var boutState: BoutState = REGISTERED
+        private set
 
     @Volatile
     lateinit var arena: Arena
+        private set
 
-    val competitors = listOf(getCompetitor(Player.YELLOW), getCompetitor(Player.BLUE))
+    fun getArenaOrNull(): Arena? {
+        return if (::arena.isInitialized) arena else null
+    }
 
-    fun conductBout(asyncFactory: AsyncFactory): Async<Player?> {
+    fun conductBout(asyncFactory: AsyncFactory): Async<Competitor?> {
 
-        val res = asyncFactory.deferred<Player?>()
+        val res = asyncFactory.deferred<Competitor?>()
 
         fun go() {
-            when (state) {
+            when (boutState) {
 
-                BoutState.REGISTERED ->
+                REGISTERED ->
                     asyncFactory
-                        .supplyAsync { start(tournament.parameters) }
+                        .supplyAsync { start(tournamentParameters) }
                         .map { go() }
                         .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
 
-                BoutState.STARTED ->
+                STARTED ->
                     asyncFactory
                         .supplyAsync { nextMove() }
                         .map { go() }
                         .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
 
                 else -> {
-                    val winner = state.winner()
+                    val winner = arena.getWinner()
                     asyncFactory
                         .supplyAsync {
-                            Player.values().forEach {
-                                getCompetitor(it).commChannel.publishResult(arena, winner)
+                            competitors.forEach {
+                                it.publishResult(arena, winner)
                             }
                         }
                         .finally { _, _ -> res.done(winner) }
@@ -65,10 +76,10 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
         val terrain = createFreshTerrain(parameters, random)
 
         arena = Arena(
-            Player.YELLOW,
-            Player.values()
-                .fold(mutableListOf()) { list, player ->
-                    val robot = Robot(player,
+            competitors.toMutableList(),
+            competitors
+                .fold(mutableListOf()) { list, competitor ->
+                    val robot = Robot(competitor,
                                       createUniquePosition(parameters.bounds, random, list.map(Robot::position)),
                                       parameters.startingEnergy,
                                       parameters.maxEnergy,
@@ -77,8 +88,7 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
                                       parameters.maxShield)
                     list.add(robot)
                     list
-                }
-            ,
+                },
             parameters.bounds,
             terrain,
             terrain.mapAll { _, aTerrain ->
@@ -91,7 +101,7 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
             }
         )
 
-        state = BoutState.STARTED
+        boutState = STARTED
     }
 
     private fun createUniquePosition(bounds: Bounds,
@@ -108,28 +118,31 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
 
     private fun nextMove() {
 
-        val move = getCompetitor(arena.activePlayer)
-            .commChannel
-            .nextMove(arena)
+        val move = activeCompetitor.nextMove(arena)
 
         if (move == null) {
-            state = when (arena.activePlayer) {
-                Player.YELLOW -> BoutState.BLUE_WINS
-                else -> BoutState.YELLOW_WINS
-            }
+            arena.findRobot(activeCompetitor).terminate()
         } else {
             val (afterMove, messages) = applyMove(move)(arena)
             arena = afterMove
-            // TODO advance active player
             // TODO do something with the messages
-            val winner = afterMove.determineWinner()
-            if (winner != null) {
-                state = when (winner) {
-                    Player.YELLOW -> BoutState.YELLOW_WINS
-                    else -> BoutState.BLUE_WINS
-                }
-            }
         }
+
+        activeCompetitor = getNextCompetitor()
+
+        boutState = when {
+            arena.hasAWinner() -> FINISHED
+            else -> boutState
+        }
+    }
+
+    private fun getNextCompetitor(): Competitor {
+        val remainingCompetitors = competitors.filter { activeCompetitor == it || arena.findRobot(it).health > 0 }
+        val nextIndex = remainingCompetitors
+            .indexOf(activeCompetitor)
+            .inc()
+            .rem(remainingCompetitors.size)
+        return remainingCompetitors[nextIndex]
     }
 
     override fun equals(other: Any?): Boolean {
@@ -138,13 +151,13 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
 
         other as Bout
 
-        if (id != other.id) return false
+        if (uuid != other.uuid) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        return id.hashCode()
+        return uuid.hashCode()
     }
 
     companion object {
@@ -159,6 +172,5 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
                 }
             }
         }
-
     }
 }

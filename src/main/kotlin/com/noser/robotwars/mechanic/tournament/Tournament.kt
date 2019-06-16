@@ -2,29 +2,29 @@ package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Bout
-import com.noser.robotwars.mechanic.bout.Player
+import java.util.*
 
 class Tournament(val tournamentName: String,
-                 competitors: Set<Competitor>,
-                 val parameters: TournamentParameters) {
+                 val competitors: Set<Competitor>,
+                 boutGenerator: (Set<Competitor>) -> Set<Bout>) {
 
-    private val openBouts: MutableSet<Bout> =
-        generatePairs(competitors.asSequence())
-            .map { (c1, c2) -> Bout(makePlayers(c1, c2), this) }
-            .toMutableSet()
+    val uuid: UUID = UUID.randomUUID()
+
+    private val openBouts = boutGenerator(competitors).toMutableSet()
 
     private val runningBouts = mutableSetOf<Bout>()
 
     private val completedBouts = mutableSetOf<Bout>()
 
-    private val notPlaying = competitors.toMutableSet()
+    private val notPlaying = mutableSetOf<Competitor>()
 
-    fun getStatistics() : TournamentStatistics = TODO()
+    fun getStatistics(): TournamentStatistics = TODO()
 
     /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts(asyncFactory: AsyncFactory) {
 
         asyncFactory.supplyAsync {
+            notPlaying.addAll(competitors)
             findStartableBouts().forEach { startBout(it, asyncFactory) }
         }
     }
@@ -32,17 +32,17 @@ class Tournament(val tournamentName: String,
     @Synchronized
     fun findStartableBouts(): List<Bout> {
 
-        val res: MutableList<Bout> = mutableListOf()
-        val players = notPlaying.toMutableSet()
+        val startableBouts = mutableListOf<Bout>()
+        val idleCompetitors = notPlaying.toMutableSet()
         for (openBout in openBouts) {
-            if (players.size < 2) continue
-            if (players.containsAll(openBout.competitors)) {
-                res.add(openBout)
-                players.removeAll(openBout.competitors)
+            if (idleCompetitors.size < 2) break // less than 2 competitors not playing anymore, stop searching for playable bouts
+            if (idleCompetitors.containsAll(openBout.competitors)) {
+                startableBouts.add(openBout)
+                idleCompetitors.removeAll(openBout.competitors)
             }
         }
 
-        return res
+        return startableBouts
     }
 
     @Synchronized
@@ -80,7 +80,7 @@ class Tournament(val tournamentName: String,
     }
 
     private fun updateStatistics(bout: Bout) {
-        check(bout.state.winner() != null)
+        check(bout.arena.hasAWinner())
 
         // TODO update statistics so it can easily be displayed
     }
@@ -101,19 +101,7 @@ class Tournament(val tournamentName: String,
         notPlaying.addAll(competitors)
     }
 
-    companion object {
-
-        private fun makePlayers(c1: Competitor, c2: Competitor): (Player) -> Competitor {
-            return {
-                when (it) {
-                    Player.YELLOW -> c1
-                    Player.BLUE -> c2
-                }
-            }
-        }
-
-        private fun <X> generatePairs(xs: Sequence<X>) = xs
-            .flatMap { x -> xs.map { y -> Pair(x, y) } }
-            .filter { (x, y) -> x != y }
+    fun getAllBouts(): List<Bout> {
+        return openBouts.union(runningBouts).union(completedBouts).toList()
     }
 }

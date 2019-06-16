@@ -1,7 +1,10 @@
 package com.noser.robotwars.mechanic.bout
 
+import com.noser.robotwars.mechanic.TestCommChannel
+import com.noser.robotwars.mechanic.tournament.Competitor
 import org.junit.Ignore
 import org.junit.Test
+import java.util.*
 import kotlin.test.assertEquals
 
 class MoveTest {
@@ -11,10 +14,20 @@ class MoveTest {
     fun testApplyTo() {
 
         val bounds = Bounds(0..10, 0..10)
-        val robots = listOf(Robot(Player.YELLOW, Position(0, 0), 6, 10, 3, 0, 3),
-                            Robot(Player.BLUE, Position(2, 1), 10, 10, 3, 1, 3))
 
-        val arena = Arena(Player.YELLOW,
+        val channelYellow = TestCommChannel()
+        val competitorYellow = Competitor(UUID.randomUUID(), "Yellow", channelYellow)
+        channelYellow.competitor = competitorYellow
+
+        val channelBlue = TestCommChannel()
+        val competitorBlue = Competitor(UUID.randomUUID(), "Blue", channelYellow)
+        channelBlue.competitor = competitorBlue
+
+        val competitors = mutableListOf(competitorYellow, competitorBlue)
+        val robots = listOf(Robot(competitorYellow, Position(0, 0), 6, 10, 3, 0, 3),
+                            Robot(competitorBlue, Position(2, 1), 10, 10, 3, 1, 3))
+
+        val arena = Arena(competitors,
                           robots,
                           bounds,
                           Grid(bounds) { pos ->
@@ -24,7 +37,7 @@ class MoveTest {
                               if (pos == Position(2, 1)) Effect.burnable() else Effect.none()
                           })
 
-        val move = Move(Player.YELLOW,
+        val move = Move(competitors[0],
                         listOf(Direction.N, Direction.N, Direction.E, Direction.S, Direction.W),
                         4,
                         Direction.S, 2,

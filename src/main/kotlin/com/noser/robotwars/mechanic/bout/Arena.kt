@@ -3,39 +3,40 @@ package com.noser.robotwars.mechanic.bout
 import com.noser.robotwars.mechanic.Detailed
 import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
+import com.noser.robotwars.mechanic.tournament.Competitor
 
-data class Arena(val activePlayer: Player,
-                 private val robots: List<Robot>,
+data class Arena(val competitors: List<Competitor>,
+                 val robots: List<Robot>,
                  val bounds: Bounds,
                  val terrain: Grid<Terrain>,
-                 private val effects: Grid<Effect>) {
+                 val effects: Grid<Effect>) {
 
     /**
      * Includes effects
      */
-    fun moveTo(player: Player, position: Position, cost: Int): Detailed<Arena> {
-        return findRobot(player)
+    fun moveTo(competitor: Competitor, position: Position, cost: Int): Detailed<Arena> {
+        return findRobot(competitor)
             .moveTo(position, cost)
             .map { withRobots(it) }
-            .flatMap { it.applyEffects(player) }
+            .flatMap { it.applyEffects(competitor) }
     }
 
     /**
      * Includes effects
      */
-    fun resolveFiring(player: Player, dir: Direction, amount: Int): Detailed<Arena> =
+    fun resolveFiring(competitor: Competitor, dir: Direction, amount: Int): Detailed<Arena> =
 
-        findRobot(player).fireCannon(dir, amount).flatMap { (robot, dmg) ->
+        findRobot(competitor).fireCannon(dir, amount).flatMap { (robot, dmg) ->
             val shotTrajectory = generateSequence(robot.position.move(dir, bounds)) { it.move(dir, bounds) }
-            when (val playerHit = findRobotHit(shotTrajectory)?.player) {
-                null -> single(withRobots(robot)) { "$player doesn't hit anything" }
+            when (val competitorHit = findRobotHit(shotTrajectory)?.competitor) {
+                null -> single(withRobots(robot)) { "$competitor doesn't hit anything" }
                 else -> none(withRobots(robot)).flatMap {
-                    it.takeSimpleDamage(playerHit, dmg).flatMap { directFireResolved: Arena ->
-                        val robotHit = directFireResolved.findRobot(playerHit)
+                    it.takeSimpleDamage(competitorHit, dmg).flatMap { directFireResolved: Arena ->
+                        val robotHit = directFireResolved.findRobot(competitorHit)
                         when (effects[robotHit.position]) {
                             is Effect.Burnable -> directFireResolved
                                 .ignite(robotHit.position)
-                                .flatMap { arena: Arena -> arena.takeSimpleDamage(robotHit.player, 1) }
+                                .flatMap { arena: Arena -> arena.takeSimpleDamage(robotHit.competitor, 1) }
                             else -> none(directFireResolved)
                         }
                     }
@@ -43,19 +44,19 @@ data class Arena(val activePlayer: Player,
             }
         }
 
-    fun loadShield(player: Player, amount: Int): Detailed<Arena> {
-        return findRobot(player).loadShield(amount).map { withRobots(it) }
+    fun loadShield(competitor: Competitor, amount: Int): Detailed<Arena> {
+        return findRobot(competitor).loadShield(amount).map { withRobots(it) }
     }
 
-    fun resolveRamming(player: Player, dir: Direction): Detailed<Arena> {
+    fun resolveRamming(competitor: Competitor, dir: Direction): Detailed<Arena> {
 
-        val robot = findRobot(player)
+        val robot = findRobot(competitor)
         return robot.ram(dir).map { withRobots(it) }.flatMap { arena ->
             val targetPos = robot.position.move(dir, bounds)
             val targetRobot = targetPos?.let { arena.findRobot(it) }
             when {
-                targetPos == null -> single(arena) { "$player rams the wall" }
-                targetRobot == null -> single(arena) { "$player doesn't hit anyone" }
+                targetPos == null -> single(arena) { "$competitor rams the wall" }
+                targetRobot == null -> single(arena) { "$competitor doesn't hit anyone" }
                 else -> {
                     val nextPos = targetPos.move(dir, bounds)
                     val nextTerrain = nextPos?.let { terrain[it] }
@@ -64,31 +65,31 @@ data class Arena(val activePlayer: Player,
 
                     when {
                         nextPos == null -> firstRamDamageDone
-                            .addDetail("${targetRobot.player} is rammed into the wall").flatMap {
+                            .addDetail("${targetRobot.competitor.name} is rammed into the wall").flatMap {
                                 targetRobot.takeDamage(1).map { rammed -> it.withRobots(rammed) }
                             }
 
                         nextTerrain == Terrain.ROCK -> firstRamDamageDone
-                            .addDetail("${targetRobot.player} is rammed into a rock").flatMap {
+                            .addDetail("${targetRobot.competitor.name} is rammed into a rock").flatMap {
                                 targetRobot.takeDamage(1).map { rammed -> it.withRobots(rammed) }
                             }
 
                         nextRobot != null -> firstRamDamageDone
-                            .addDetail("${targetRobot.player} is rammed into ${nextRobot.player}").flatMap {
+                            .addDetail("${targetRobot.competitor.name} is rammed into ${nextRobot.competitor.name}").flatMap {
                                 targetRobot.takeDamage(1).flatMap { rammed ->
                                     nextRobot.takeDamage(1).map { secondRammed -> it.withRobots(rammed, secondRammed) }
                                 }
                             }
 
-                        else -> firstRamDamageDone.flatMap { it.moveTo(targetRobot.player, nextPos, 0) }
+                        else -> firstRamDamageDone.flatMap { it.moveTo(targetRobot.competitor, nextPos, 0) }
                     }
                 }
             }
         }
     }
 
-    private fun takeSimpleDamage(player: Player, amount: Int): Detailed<Arena> {
-        return findRobot(player).takeDamage(amount).map { withRobots(it) }
+    private fun takeSimpleDamage(competitor: Competitor, amount: Int): Detailed<Arena> {
+        return findRobot(competitor).takeDamage(amount).map { withRobots(it) }
     }
 
     private fun ignite(position: Position): Detailed<Arena> {
@@ -107,10 +108,10 @@ data class Arena(val activePlayer: Player,
         return null
     }
 
-    fun applyEffects(player: Player): Detailed<Arena> {
-        val robot = findRobot(player)
+    fun applyEffects(competitor: Competitor): Detailed<Arena> {
+        val robot = findRobot(competitor)
         return when (effects[robot.position]) {
-            is Effect.Fire -> single(this) { "$player is in fire" }.flatMap {
+            is Effect.Fire -> single(this) { "$competitor is in fire" }.flatMap {
                 robot.takeDamage(1).map { withRobots(it) }
             }
             else -> none(this)
@@ -119,15 +120,23 @@ data class Arena(val activePlayer: Player,
 
     fun findRobot(position: Position) = robots.find { it.position == position }
 
-    fun findRobot(player: Player) =
-        robots.find { it.player == player } ?: throw IllegalArgumentException("Robot $player not found")
+    fun findRobot(competitor: Competitor) =
+        robots.find { it.competitor == competitor } ?: throw IllegalArgumentException("Robot $competitor not found")
 
     private fun withRobots(vararg robot: Robot) =
         copy(robots = robots.map { existing ->
-            robot.find { it.player == existing.player } ?: existing
+            robot.find { it.competitor == existing.competitor } ?: existing
         })
 
     private fun withEffects(effects: Grid<Effect>) = copy(effects = effects)
 
-    fun determineWinner(): Player? = TODO()
+    private fun getHealthyRobots() = robots.filter { it.health > 0 }
+
+    fun hasAWinner(): Boolean {
+        return getHealthyRobots().size <= 1
+    }
+
+    fun getWinner(): Competitor? {
+        return getHealthyRobots().let { if (it.size == 1) it[0].competitor else null }
+    }
 }

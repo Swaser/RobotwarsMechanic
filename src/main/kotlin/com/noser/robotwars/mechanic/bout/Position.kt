@@ -1,7 +1,6 @@
 package com.noser.robotwars.mechanic.bout
 
 import kotlin.math.abs
-import kotlin.random.Random
 
 data class Position(val row: Int,
                     val col: Int) {
