@@ -1,7 +1,8 @@
 package com.noser.robotwars.mechanic.bout
 
-import com.noser.robotwars.mechanic.Async
+import com.noser.robotwars.mechanic.Observable
 import com.noser.robotwars.mechanic.AsyncFactory
+import com.noser.robotwars.mechanic.Observer
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
@@ -12,54 +13,82 @@ import kotlin.random.Random
 /**
  * The bout gets its own unique id so it can easily identified
  */
-class Bout(private val getCompetitor: (Player) -> Competitor,
+class Bout(private val asyncFactory: AsyncFactory,
+           private val getCompetitor: (Player) -> Competitor,
            private val tournament: Tournament,
            @Volatile var state: BoutState = BoutState.REGISTERED) {
 
     private val id: UUID = UUID.randomUUID()
+
+    private val source = asyncFactory.source<Bout>()
 
     @Volatile
     lateinit var arena: Arena
 
     val competitors = listOf(getCompetitor(Player.YELLOW), getCompetitor(Player.BLUE))
 
-    fun conductBout(asyncFactory: AsyncFactory): Async<Player?> {
+    fun observe(): Observable<Bout> = source
 
-        val res = asyncFactory.deferred<Player?>()
-
-        fun go() {
-            when (state) {
-
-                BoutState.REGISTERED ->
-                    asyncFactory
-                        .supplyAsync { start(tournament.parameters) }
-                        .map { go() }
-                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
-
-                BoutState.STARTED ->
-                    asyncFactory
-                        .supplyAsync { nextMove() }
-                        .map { go() }
-                        .finally { _, throwable -> if (throwable != null) res.exception(throwable) }
-
-                else -> {
-                    val winner = state.winner()
-                    asyncFactory
-                        .supplyAsync {
-                            Player.values().forEach {
-                                getCompetitor(it).commChannel.publishResult(arena, winner)
-                            }
-                        }
-                        .finally { _, _ -> res.done(winner) }
-                }
-            }
-        }
-
-        go()
-        return res
+    fun conductBout(): Observable<Bout> {
+        conductBoutRecursive()
+        return observe()
     }
 
-    private fun start(parameters: TournamentParameters) {
+    private val stillRunningObserver = object : Observer<Bout> {
+        override fun onNext(u: Bout) {
+            source.push(u)
+            conductBoutRecursive()
+        }
+
+        override fun onDone() { /* not done yet */
+        }
+
+        override fun onException(e: Exception) {
+            source.pushException(e)
+            source.done()
+        }
+    }
+
+    private val resolvedObserver = object : Observer<Bout> {
+        override fun onNext(u: Bout) = source.push(u)
+        override fun onDone() = source.done()
+        override fun onException(e: Exception) {
+            source.pushException(e)
+            source.done()
+        }
+    }
+
+    private fun conductBoutRecursive() {
+
+        when (state) {
+
+            BoutState.REGISTERED -> asyncFactory
+                .supplyOne { start(tournament.parameters) }
+                .observe(stillRunningObserver)
+
+            BoutState.STARTED    -> asyncFactory
+                .supplyOne { nextMove() }
+                .observe(stillRunningObserver)
+
+            else                 -> {
+                val winner = state.winner()
+                asyncFactory
+                    .supplyOne {
+                        Player.values().forEach {
+                            try {
+                                getCompetitor(it).commChannel.publishResult(arena, winner)
+                            } catch (e: Exception) {
+                                // TODO what to do here
+                            }
+                        }
+                        this@Bout
+                    }
+                    .observe(resolvedObserver)
+            }
+        }
+    }
+
+    private fun start(parameters: TournamentParameters): Bout {
 
         val random = Random(System.currentTimeMillis())
         val terrain = createFreshTerrain(parameters, random)
@@ -92,6 +121,7 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
         )
 
         state = BoutState.STARTED
+        return this
     }
 
     private fun createUniquePosition(bounds: Bounds,
@@ -106,7 +136,7 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
         return pos
     }
 
-    private fun nextMove() {
+    private fun nextMove(): Bout {
 
         val move = getCompetitor(arena.activePlayer)
             .commChannel
@@ -115,7 +145,7 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
         if (move == null) {
             state = when (arena.activePlayer) {
                 Player.YELLOW -> BoutState.BLUE_WINS
-                else -> BoutState.YELLOW_WINS
+                else          -> BoutState.YELLOW_WINS
             }
         } else {
             val (afterMove, messages) = applyMove(move)(arena)
@@ -126,10 +156,11 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
             if (winner != null) {
                 state = when (winner) {
                     Player.YELLOW -> BoutState.YELLOW_WINS
-                    else -> BoutState.BLUE_WINS
+                    else          -> BoutState.BLUE_WINS
                 }
             }
         }
+        return this
     }
 
     override fun equals(other: Any?): Boolean {
@@ -154,8 +185,8 @@ class Bout(private val getCompetitor: (Player) -> Competitor,
                 val rnd = random.nextDouble()
                 when {
                     rnd < parameters.chanceForWater -> Terrain.WATER
-                    rnd < parameters.chanceForRock -> Terrain.ROCK
-                    else -> Terrain.GREEN
+                    rnd < parameters.chanceForRock  -> Terrain.ROCK
+                    else                            -> Terrain.GREEN
                 }
             }
         }

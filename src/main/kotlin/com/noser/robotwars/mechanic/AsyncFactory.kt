@@ -2,10 +2,9 @@ package com.noser.robotwars.mechanic
 
 interface AsyncFactory {
 
-    fun <A> supplyAsync(supplier : () -> A) : Async<A>
+    fun <A> supplyOne(supplier : () -> A) : Observable<A>
 
-    fun <A> direct(a : A) : Async<A>
+    fun <A> just(a : A) : Observable<A>
 
-    fun <A> deferred() : Async<A>
-
+    fun <A> source() : Source<A>
 }

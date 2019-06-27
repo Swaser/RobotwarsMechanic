@@ -1,15 +1,17 @@
 package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
+import com.noser.robotwars.mechanic.Observer
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Player
 
-class Tournament(competitors: Set<Competitor>,
+class Tournament(asyncFactory: AsyncFactory,
+                 competitors: Set<Competitor>,
                  val parameters: TournamentParameters) {
 
     private val openBouts: MutableSet<Bout> =
         generatePairs(competitors.asSequence())
-            .map { (c1, c2) -> Bout(makePlayers(c1, c2), this) }
+            .map { (c1, c2) -> Bout(asyncFactory, makePlayers(c1, c2), this) }
             .toMutableSet()
 
     private val runningBouts = mutableSetOf<Bout>()
@@ -18,13 +20,13 @@ class Tournament(competitors: Set<Competitor>,
 
     private val notPlaying = competitors.toMutableSet()
 
-    fun getStatistics() : TournamentStatistics = TODO()
+    fun getStatistics(): TournamentStatistics = TODO()
 
     /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts(asyncFactory: AsyncFactory) {
 
-        asyncFactory.supplyAsync {
-            findStartableBouts().forEach { startBout(it, asyncFactory) }
+        asyncFactory.supplyOne {
+            findStartableBouts().forEach { startBout(it) }
         }
     }
 
@@ -45,17 +47,19 @@ class Tournament(competitors: Set<Competitor>,
     }
 
     @Synchronized
-    private fun startBout(bout: Bout, asyncFactory: AsyncFactory) {
+    private fun startBout(bout: Bout) {
         registerBoutStarted(bout)
-        bout.conductBout(asyncFactory)
-            .finally { _, throwable ->
-                if (throwable == null) {
-                    registerBoutEnded(bout)
-                } else {
-                    // TODO put it into some intermediate state
-                    // TODO allow the reason to be analyzed and the bout to be retried OR the bout to be resolved manually
-                }
+        bout.conductBout().observe(object : Observer<Bout> {
+            override fun onNext(u: Bout) { /* ignore */ }
+
+            override fun onDone() {
+                registerBoutEnded(bout)
             }
+
+            override fun onException(e: Exception) {
+                // TODO registerBoutCrashed
+            }
+        })
     }
 
     @Synchronized
@@ -106,7 +110,7 @@ class Tournament(competitors: Set<Competitor>,
             return {
                 when (it) {
                     Player.YELLOW -> c1
-                    Player.BLUE -> c2
+                    Player.BLUE   -> c2
                 }
             }
         }

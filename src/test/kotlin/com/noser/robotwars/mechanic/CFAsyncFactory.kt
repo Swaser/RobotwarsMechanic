@@ -23,53 +23,72 @@ object CFAsyncFactory : AsyncFactory {
                                                             }
                                                         })
 
-    override fun <A> supplyAsync(supplier: () -> A): Async<A> {
-        return CFAsync(CompletableFuture.supplyAsync(Supplier(supplier), executor))
+    override fun <A> supplyOne(supplier: () -> A): Observable<A> {
+        return CFObservable(CompletableFuture.supplyAsync(Supplier(supplier), executor))
     }
 
-    override fun <A> direct(a: A): Async<A> {
-        return CFAsync(CompletableFuture.completedFuture(a))
+    override fun <A> just(a: A): Observable<A> {
+        return CFObservable(CompletableFuture.completedFuture(a))
     }
 
-    override fun <A> deferred(): Async<A> {
-        return CFAsync(CompletableFuture())
-    }
+    override fun <A> source(): Source<A> {
 
-    private class CFAsync<U>(private val cf: CompletableFuture<U>) : Async<U> {
+        val cfAsync = CFObservable(CompletableFuture<A>())
 
-        override fun done(u: U): Async<U> {
-            cf.complete(u)
-            return this
-        }
+        return object : Source<A> {
 
-        override fun exception(t: Throwable): Async<U> {
-            cf.completeExceptionally(t)
-            return this
-        }
+            override fun <V> map(f: (A) -> V): Observable<V> = cfAsync.map(f)
 
-        override fun <V> map(f: (U) -> V): Async<V> {
-            return CFAsync(cf.thenApplyAsync(f))
-        }
+            override fun <V> flatMap(f: (A) -> Observable<V>): Observable<V> = cfAsync.flatMap(f)
 
-        override fun <V> flatMap(f: (U) -> Async<V>): Async<V> {
+            override fun observe(observer: Observer<A>): Observable<A> = cfAsync.observe(observer)
 
-            val res = deferred<V>()
-
-            finally { u, t ->
-                if (t !== null) {
-                    res.exception(t)
-                } else {
-                    f(u).finally { v, t2 ->
-                        if (t2 != null) res.exception(t2) else res.done(v)
-                    }
-                }
+            override fun push(a: A) {
+                cfAsync.complete(a)
             }
 
-            return res
+            override fun done() {
+                // nothing to be done for CF
+            }
+
+            override fun pushException(e: Exception) {
+                cfAsync.completeExceptionally(e)
+            }
+        }
+    }
+
+    private class CFObservable<U>(private val cf: CompletableFuture<U>) : Observable<U> {
+
+        override fun observe(observer: Observer<U>): Observable<U> {
+            cf.handle { u, t ->
+                if (t != null) {
+                    observer.onException(if (t is Exception) t else AsyncException(t))
+                    observer.onDone()
+                } else {
+                    observer.onNext(u)
+                    observer.onDone()
+                }
+            }
+            return this
         }
 
-        override fun finally(f: (U, Throwable?) -> Unit) {
-            cf.whenComplete(f)
+        fun complete(u: U) {
+            cf.complete(u)
+        }
+
+        fun completeExceptionally(e: Exception) {
+            cf.completeExceptionally(e)
+        }
+
+        override fun <V> map(f: (U) -> V): Observable<V> {
+            return CFObservable(cf.thenApplyAsync(f))
+        }
+
+        override fun <V> flatMap(f: (U) -> Observable<V>): Observable<V> {
+
+            val res = source<V>()
+
+            return res
         }
     }
 }

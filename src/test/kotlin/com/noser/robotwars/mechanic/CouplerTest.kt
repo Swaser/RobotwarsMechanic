@@ -23,9 +23,20 @@ class CouplerTest {
 
         if (i >= 0)
             CFAsyncFactory
-                .direct(Unit)
-                .map { a = i }
-                .map { conduct(i - 1) }
+                .supplyOne { i }
+                .observe(object : Observer<Int> {
+                    override fun onNext(j : Int) {
+                        a = j
+                        println(a)
+                        conduct(j - 1)
+                    }
+
+                    override fun onDone() {}
+
+                    override fun onException(e: Exception) {
+                        println(e.message)
+                    }
+                })
     }
 
 }
