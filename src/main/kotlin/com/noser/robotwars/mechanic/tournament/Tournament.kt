@@ -1,7 +1,6 @@
 package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
-import com.noser.robotwars.mechanic.Observer
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Player
 
@@ -49,17 +48,10 @@ class Tournament(asyncFactory: AsyncFactory,
     @Synchronized
     private fun startBout(bout: Bout) {
         registerBoutStarted(bout)
-        bout.conductBout().observe(object : Observer<Bout> {
-            override fun onNext(u: Bout) { /* ignore */ }
-
-            override fun onDone() {
-                registerBoutEnded(bout)
-            }
-
-            override fun onException(e: Exception) {
-                // TODO registerBoutCrashed
-            }
-        })
+        bout.conductBout()
+            .subscribe({ /* ignore onNext() */ },
+                       { /* TODO onError */ },
+                       { registerBoutEnded(bout) })
     }
 
     @Synchronized
@@ -110,7 +102,7 @@ class Tournament(asyncFactory: AsyncFactory,
             return {
                 when (it) {
                     Player.YELLOW -> c1
-                    Player.BLUE   -> c2
+                    Player.BLUE -> c2
                 }
             }
         }

@@ -1,12 +1,13 @@
 package com.noser.robotwars.mechanic.bout
 
-import com.noser.robotwars.mechanic.Observable
 import com.noser.robotwars.mechanic.AsyncFactory
-import com.noser.robotwars.mechanic.Observer
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
+import io.reactivex.Observable
+import io.reactivex.Observer
+import io.reactivex.disposables.Disposable
 import java.util.*
 import kotlin.random.Random
 
@@ -35,27 +36,20 @@ class Bout(private val asyncFactory: AsyncFactory,
     }
 
     private val stillRunningObserver = object : Observer<Bout> {
-        override fun onNext(u: Bout) {
-            source.push(u)
+        override fun onComplete() {}
+        override fun onSubscribe(d: Disposable) {}
+        override fun onError(t: Throwable) = source.onError(t)
+        override fun onNext(bout: Bout) {
+            source.onNext(bout)
             conductBoutRecursive()
-        }
-
-        override fun onDone() { /* not done yet */
-        }
-
-        override fun onException(e: Exception) {
-            source.pushException(e)
-            source.done()
         }
     }
 
     private val resolvedObserver = object : Observer<Bout> {
-        override fun onNext(u: Bout) = source.push(u)
-        override fun onDone() = source.done()
-        override fun onException(e: Exception) {
-            source.pushException(e)
-            source.done()
-        }
+        override fun onComplete() = source.onComplete()
+        override fun onSubscribe(d: Disposable) {}
+        override fun onNext(bout: Bout) = source.onNext(bout)
+        override fun onError(t: Throwable) = source.onError(t)
     }
 
     private fun conductBoutRecursive() {
@@ -64,11 +58,11 @@ class Bout(private val asyncFactory: AsyncFactory,
 
             BoutState.REGISTERED -> asyncFactory
                 .supplyOne { start(tournament.parameters) }
-                .observe(stillRunningObserver)
+                .subscribe(stillRunningObserver)
 
             BoutState.STARTED    -> asyncFactory
                 .supplyOne { nextMove() }
-                .observe(stillRunningObserver)
+                .subscribe(stillRunningObserver)
 
             else                 -> {
                 val winner = state.winner()
@@ -83,7 +77,7 @@ class Bout(private val asyncFactory: AsyncFactory,
                         }
                         this@Bout
                     }
-                    .observe(resolvedObserver)
+                    .subscribe(resolvedObserver)
             }
         }
     }
