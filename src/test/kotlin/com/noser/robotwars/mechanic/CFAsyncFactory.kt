@@ -13,6 +13,10 @@ object CFAsyncFactory : AsyncFactory {
     private val logger = LoggerFactory.getLogger(CFAsyncFactory::class.java)
 
     override fun <A> supplyOne(supplier: () -> A): Observable<A> {
+
+
+
+
         return Observable.create { emitter: ObservableEmitter<A> ->
             CompletableFuture.supplyAsync(supplier).whenComplete { a, t ->
                 println("whenComplete called")
