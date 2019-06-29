@@ -121,7 +121,9 @@ class Bout(val competitors: List<Competitor>,
         val move = activeCompetitor.nextMove(arena)
 
         if (move == null) {
-            arena.findRobot(activeCompetitor).terminate()
+            val (afterMove, messages) = arena.harakiri(activeCompetitor)
+            arena = afterMove
+            // TODO do something with the messages
         } else {
             val (afterMove, messages) = applyMove(move)(arena)
             arena = afterMove

@@ -84,9 +84,4 @@ class Robot(val competitor: Competitor,
         }
     }
 
-    fun terminate(): Detailed<Pair<Robot, Int>> {
-        return single(Pair(update(health = 0), health)) { (it, _) ->
-            "$competitor has been terminated (E=${it.energy},S=${it.shield},H=${it.health})"
-        }
-    }
 }

@@ -112,11 +112,11 @@ object Moves {
         }
     }
 
-    fun applyDirections(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
+    private fun applyDirections(move: Move): (Arena) -> Detailed<Arena> = { move.applyDirections(it) }
 
-    fun applyShieldLoading(move: Move): (Arena) -> Detailed<Arena> = { move.applyLoadShield(it) }
+    private fun applyShieldLoading(move: Move): (Arena) -> Detailed<Arena> = { move.applyLoadShield(it) }
 
-    fun applyRamming(move: Move): (Arena) -> Detailed<Arena> = { move.applyRamming(it) }
+    private fun applyRamming(move: Move): (Arena) -> Detailed<Arena> = { move.applyRamming(it) }
 
-    fun applyFiring(move: Move): (Arena) -> Detailed<Arena> = { move.applyFireCannon(it) }
+    private fun applyFiring(move: Move): (Arena) -> Detailed<Arena> = { move.applyFireCannon(it) }
 }

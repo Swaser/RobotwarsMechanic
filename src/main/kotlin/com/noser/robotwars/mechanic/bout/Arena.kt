@@ -139,4 +139,8 @@ data class Arena(val competitors: List<Competitor>,
     fun getWinner(): Competitor? {
         return getHealthyRobots().let { if (it.size == 1) it[0].competitor else null }
     }
+
+    fun harakiri(competitor: Competitor): Detailed<Arena> {
+        return findRobot(competitor).run { takeDamage(health) }.map { withRobots(it) }
+    }
 }

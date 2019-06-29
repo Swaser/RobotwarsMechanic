@@ -8,8 +8,18 @@ data class Competitor(val uuid: UUID,
                       val name: String,
                       private val commChannel: CommChannel) {
 
+    @Volatile
+    private var harakiri: Boolean = false
+
+    fun harakiri() {
+        harakiri = true
+    }
+
     fun nextMove(arena: Arena): Move? {
-        return commChannel.nextMove(arena)
+        return when {
+            harakiri -> null
+            else -> commChannel.nextMove(arena)
+        }
     }
 
     fun publishResult(arena: Arena,
