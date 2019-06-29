@@ -2,15 +2,16 @@ package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Bout
+import com.noser.robotwars.mechanic.tournament.TournamentState.OPEN
+import com.noser.robotwars.mechanic.tournament.TournamentState.STARTED
 import java.util.*
 
 class Tournament(val tournamentName: String,
-                 val competitors: Set<Competitor>,
-                 boutGenerator: (Set<Competitor>) -> Set<Bout>) {
+                 private val boutGenerator: (Set<Competitor>) -> Set<Bout>) {
 
     val uuid: UUID = UUID.randomUUID()
 
-    private val openBouts = boutGenerator(competitors).toMutableSet()
+    private lateinit var openBouts: MutableSet<Bout>
 
     private val runningBouts = mutableSetOf<Bout>()
 
@@ -18,10 +19,37 @@ class Tournament(val tournamentName: String,
 
     private val notPlaying = mutableSetOf<Competitor>()
 
+    var competitors = mutableSetOf<Competitor>()
+        private set
+
+    private var tournamentState = OPEN
+
+    fun startTournament(asyncFactory: AsyncFactory) {
+        check(tournamentState == OPEN)
+        check(competitors.size > 1)
+
+        openBouts = boutGenerator(competitors).toMutableSet()
+        tournamentState = STARTED
+        startNextRoundOfBouts(asyncFactory)
+    }
+
+    fun isOpen(): Boolean {
+        return tournamentState == OPEN
+    }
+
+    fun isStarted(): Boolean {
+        return tournamentState == STARTED
+    }
+
+    fun addCompetitor(competitor: Competitor) {
+        check(tournamentState == OPEN)
+        competitors.add(competitor)
+    }
+
     fun getStatistics(): TournamentStatistics = TODO()
 
     /** call this fun repeatedly until tournament done */
-    fun startNextRoundOfBouts(asyncFactory: AsyncFactory) {
+    private fun startNextRoundOfBouts(asyncFactory: AsyncFactory) {
 
         asyncFactory.supplyAsync {
             notPlaying.addAll(competitors)
@@ -30,7 +58,7 @@ class Tournament(val tournamentName: String,
     }
 
     @Synchronized
-    fun findStartableBouts(): List<Bout> {
+    private fun findStartableBouts(): List<Bout> {
 
         val startableBouts = mutableListOf<Bout>()
         val idleCompetitors = notPlaying.toMutableSet()
@@ -102,6 +130,6 @@ class Tournament(val tournamentName: String,
     }
 
     fun getAllBouts(): List<Bout> {
-        return openBouts.union(runningBouts).union(completedBouts).toList()
+        return if(::openBouts.isInitialized) openBouts.union(runningBouts).union(completedBouts).toList() else listOf()
     }
 }
