@@ -92,10 +92,10 @@ class Bout(val competitors: List<Competitor>,
             parameters.bounds,
             terrain,
             terrain.mapAll { _, aTerrain ->
-                if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
+                if (aTerrain == Terrain.GREEN && random.nextDouble() < parameters.chanceForBurnable)
                     Effect.burnable()
-                else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
-                    Effect.energy(random.nextInt(10) + 1)
+                else if (aTerrain != Terrain.ROCK && random.nextDouble() < parameters.chanceForEnergy)
+                    Effect.energy(random.nextInt(parameters.maxEnergy - 1) + 1)
                 else
                     Effect.none()
             }
@@ -123,11 +123,11 @@ class Bout(val competitors: List<Competitor>,
         if (move == null) {
             val (afterMove, messages) = arena.harakiri(activeCompetitor)
             arena = afterMove
-            // TODO do something with the messages
+            messages.forEach{ println(it) }
         } else {
             val (afterMove, messages) = applyMove(move)(arena)
             arena = afterMove
-            // TODO do something with the messages
+            messages.forEach{ println(it) }
         }
 
         activeCompetitor = getNextCompetitor()
