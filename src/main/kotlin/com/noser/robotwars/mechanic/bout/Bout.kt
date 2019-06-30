@@ -15,7 +15,7 @@ import kotlin.random.Random
  * The bout gets its own unique id so it can easily be identified
  */
 class Bout(val competitors: List<Competitor>,
-           private val tournamentParameters: TournamentParameters) {
+           val tournamentParameters: TournamentParameters) {
 
     val uuid: UUID = UUID.randomUUID()
 
