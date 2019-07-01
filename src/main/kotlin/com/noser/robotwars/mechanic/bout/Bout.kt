@@ -19,9 +19,6 @@ class Bout(val competitors: List<Competitor>,
 
     val uuid: UUID = UUID.randomUUID()
 
-    var activeCompetitor: Competitor = competitors.first()
-        private set
-
     @Volatile
     var boutState: BoutState = REGISTERED
         private set
@@ -76,7 +73,7 @@ class Bout(val competitors: List<Competitor>,
         val terrain = createFreshTerrain(parameters, random)
 
         arena = Arena(
-            competitors.toMutableList(),
+            competitors.first(),
             competitors
                 .fold(mutableListOf()) { list, competitor ->
                     val robot = Robot(competitor,
@@ -118,10 +115,10 @@ class Bout(val competitors: List<Competitor>,
 
     private fun nextMove() {
 
-        val move = activeCompetitor.nextMove(arena)
+        val move = arena.activeCompetitor.nextMove(arena)
 
         if (move == null) {
-            val (afterMove, messages) = arena.harakiri(activeCompetitor)
+            val (afterMove, messages) = arena.harakiri(arena.activeCompetitor)
             arena = afterMove
             messages.forEach{ println(it) }
         } else {
@@ -130,7 +127,7 @@ class Bout(val competitors: List<Competitor>,
             messages.forEach{ println(it) }
         }
 
-        activeCompetitor = getNextCompetitor()
+        arena = arena.advanceCompetitor()
 
         competitors.forEach { it.notify(this) }
 
@@ -138,15 +135,6 @@ class Bout(val competitors: List<Competitor>,
             arena.hasAWinner() -> FINISHED
             else -> boutState
         }
-    }
-
-    private fun getNextCompetitor(): Competitor {
-        val remainingCompetitors = competitors.filter { activeCompetitor == it || arena.findRobot(it).health > 0 }
-        val nextIndex = remainingCompetitors
-            .indexOf(activeCompetitor)
-            .inc()
-            .rem(remainingCompetitors.size)
-        return remainingCompetitors[nextIndex]
     }
 
     override fun equals(other: Any?): Boolean {
@@ -162,6 +150,10 @@ class Bout(val competitors: List<Competitor>,
 
     override fun hashCode(): Int {
         return uuid.hashCode()
+    }
+
+    fun getActivecompetitorUuid(): String? {
+        return if(::arena.isInitialized) arena.activeCompetitor.uuid.toString() else null
     }
 
     companion object {

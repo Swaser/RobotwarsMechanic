@@ -17,7 +17,11 @@ data class Competitor(val uuid: UUID,
     }
 
     fun notify(bout: Bout) {
-        commChannel.notify(bout)
+        commChannel.notifyBout(bout)
+    }
+
+    fun notify(tournament: Tournament) {
+        commChannel.notifyTournament(tournament)
     }
 
     fun nextMove(arena: Arena): Move? {

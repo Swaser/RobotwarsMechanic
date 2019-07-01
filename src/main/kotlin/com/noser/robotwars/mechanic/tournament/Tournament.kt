@@ -31,6 +31,8 @@ class Tournament(val tournamentName: String,
         openBouts = boutGenerator(competitors).toMutableSet()
         tournamentState = STARTED
         startNextRoundOfBouts(asyncFactory)
+
+        competitors.forEach { it.notify(this) }
     }
 
     fun isOpen(): Boolean {

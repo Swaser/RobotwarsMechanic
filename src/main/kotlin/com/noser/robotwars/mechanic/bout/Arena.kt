@@ -5,7 +5,7 @@ import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
 import com.noser.robotwars.mechanic.tournament.Competitor
 
-data class Arena(val competitors: List<Competitor>,
+data class Arena(val activeCompetitor: Competitor,
                  val robots: List<Robot>,
                  val bounds: Bounds,
                  val terrain: Grid<Terrain>,
@@ -142,5 +142,19 @@ data class Arena(val competitors: List<Competitor>,
 
     fun harakiri(competitor: Competitor): Detailed<Arena> {
         return findRobot(competitor).run { takeDamage(health) }.map { withRobots(it) }
+    }
+
+    fun advanceCompetitor(): Arena {
+        val remainingCompetitors = robots.filter { activeCompetitor == it.competitor || it.health > 0 }
+        val nextIndex = remainingCompetitors
+            .map { it.competitor }
+            .indexOf(activeCompetitor)
+            .inc()
+            .rem(remainingCompetitors.size)
+        return Arena(remainingCompetitors[nextIndex].competitor,
+                     robots,
+                     bounds,
+                     terrain,
+                     effects)
     }
 }

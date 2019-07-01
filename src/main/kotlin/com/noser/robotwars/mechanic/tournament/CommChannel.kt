@@ -9,7 +9,12 @@ interface CommChannel {
     /**
      * notify competitor of a change in a bout
      */
-    fun notify(bout: Bout)
+    fun notifyBout(bout: Bout)
+
+    /**
+     * notify competitor of a change in a tournament
+     */
+    fun notifyTournament(tournament: Tournament)
 
     /**
      * If move == null (timeout or any other problem) then the CommChannel should be closed

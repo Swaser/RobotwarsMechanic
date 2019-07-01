@@ -27,7 +27,7 @@ class MoveTest {
         val robots = listOf(Robot(competitorYellow, Position(0, 0), 6, 10, 3, 0, 3),
                             Robot(competitorBlue, Position(2, 1), 10, 10, 3, 1, 3))
 
-        val arena = Arena(competitors,
+        val arena = Arena(competitors[0],
                           robots,
                           bounds,
                           Grid(bounds) { pos ->
