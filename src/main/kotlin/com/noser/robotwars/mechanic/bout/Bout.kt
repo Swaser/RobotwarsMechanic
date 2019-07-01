@@ -132,6 +132,8 @@ class Bout(val competitors: List<Competitor>,
 
         activeCompetitor = getNextCompetitor()
 
+        competitors.forEach { it.notify(this) }
+
         boutState = when {
             arena.hasAWinner() -> FINISHED
             else -> boutState

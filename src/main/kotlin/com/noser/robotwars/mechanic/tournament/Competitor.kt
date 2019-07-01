@@ -1,6 +1,7 @@
 package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.bout.Arena
+import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Move
 import java.util.*
 
@@ -13,6 +14,10 @@ data class Competitor(val uuid: UUID,
 
     fun harakiri() {
         harakiri = true
+    }
+
+    fun notify(bout: Bout) {
+        commChannel.notify(bout)
     }
 
     fun nextMove(arena: Arena): Move? {
