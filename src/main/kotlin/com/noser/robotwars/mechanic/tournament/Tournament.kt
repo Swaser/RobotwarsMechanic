@@ -11,7 +11,7 @@ class Tournament(val tournamentName: String,
 
     val uuid: UUID = UUID.randomUUID()
 
-    private lateinit var openBouts: MutableSet<Bout>
+    private val openBouts = mutableSetOf<Bout>()
 
     private val runningBouts = mutableSetOf<Bout>()
 
@@ -28,7 +28,7 @@ class Tournament(val tournamentName: String,
         check(tournamentState == OPEN)
         check(competitors.size > 1)
 
-        openBouts = boutGenerator(competitors).toMutableSet()
+        openBouts.addAll(boutGenerator(competitors))
         tournamentState = STARTED
         startNextRoundOfBouts(asyncFactory)
 
@@ -132,6 +132,6 @@ class Tournament(val tournamentName: String,
     }
 
     fun getAllBouts(): List<Bout> {
-        return if(::openBouts.isInitialized) openBouts.union(runningBouts).union(completedBouts).toList() else listOf()
+        return openBouts.union(runningBouts).union(completedBouts).toList()
     }
 }
