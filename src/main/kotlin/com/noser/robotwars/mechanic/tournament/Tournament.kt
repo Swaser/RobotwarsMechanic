@@ -24,7 +24,7 @@ class Tournament(asyncFactory: AsyncFactory,
     /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts(asyncFactory: AsyncFactory) {
 
-        asyncFactory.supplyOne {
+        asyncFactory.later {
             findStartableBouts().forEach { startBout(it) }
         }
     }

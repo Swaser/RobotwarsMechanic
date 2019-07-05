@@ -1,13 +1,12 @@
 package com.noser.robotwars.mechanic.bout
 
+import com.noser.robotwars.mechanic.Async
 import com.noser.robotwars.mechanic.AsyncFactory
+import com.noser.robotwars.mechanic.AsyncListener
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
-import io.reactivex.Observable
-import io.reactivex.Observer
-import io.reactivex.disposables.Disposable
 import java.util.*
 import kotlin.random.Random
 
@@ -21,35 +20,33 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     private val id: UUID = UUID.randomUUID()
 
-    private val source = asyncFactory.source<Bout>()
+    private val subject = asyncFactory.subject<Bout>()
 
     @Volatile
     lateinit var arena: Arena
 
     val competitors = listOf(getCompetitor(Player.YELLOW), getCompetitor(Player.BLUE))
 
-    fun observe(): Observable<Bout> = source
+    fun observe(): Async<Bout> = subject
 
-    fun conductBout(): Observable<Bout> {
+    fun conductBout(): Async<Bout> {
         conductBoutRecursive()
         return observe()
     }
 
-    private val stillRunningObserver = object : Observer<Bout> {
+    private val stillRunningObserver = object : AsyncListener<Bout> {
         override fun onComplete() {}
-        override fun onSubscribe(d: Disposable) {}
-        override fun onError(t: Throwable) = source.onError(t)
+        override fun onError(throwable: Throwable) = subject.onError(throwable)
         override fun onNext(bout: Bout) {
-            source.onNext(bout)
+            subject.onNext(bout)
             conductBoutRecursive()
         }
     }
 
-    private val resolvedObserver = object : Observer<Bout> {
-        override fun onComplete() = source.onComplete()
-        override fun onSubscribe(d: Disposable) {}
-        override fun onNext(bout: Bout) = source.onNext(bout)
-        override fun onError(t: Throwable) = source.onError(t)
+    private val resolvedObserver = object : AsyncListener<Bout> {
+        override fun onComplete() = subject.onComplete()
+        override fun onNext(bout: Bout) = subject.onNext(bout)
+        override fun onError(throwable: Throwable) = subject.onError(throwable)
     }
 
     private fun conductBoutRecursive() {
@@ -57,17 +54,17 @@ class Bout(private val asyncFactory: AsyncFactory,
         when (state) {
 
             BoutState.REGISTERED -> asyncFactory
-                .supplyOne { start(tournament.parameters) }
+                .later { start(tournament.parameters) }
                 .subscribe(stillRunningObserver)
 
             BoutState.STARTED    -> asyncFactory
-                .supplyOne { nextMove() }
+                .later { nextMove() }
                 .subscribe(stillRunningObserver)
 
             else                 -> {
                 val winner = state.winner()
                 asyncFactory
-                    .supplyOne {
+                    .later {
                         Player.values().forEach {
                             try {
                                 getCompetitor(it).commChannel.publishResult(arena, winner)

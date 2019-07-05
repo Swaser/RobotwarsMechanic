@@ -1,10 +1,9 @@
 package com.noser.robotwars.mechanic
 
-import io.reactivex.Observer
 import org.junit.Test
 import kotlin.test.assertEquals
 
-class CouplerTest {
+class RxAsyncFactoryTest {
 
     @Volatile
     var a: Int = -10
@@ -12,9 +11,9 @@ class CouplerTest {
     @Test
     fun testSupplyOne() {
 
-        val observable = CFAsyncFactory.supplyOne { 3 }
-        observable.subscribe { println(it) }
-        observable.subscribe { println(it) }
+        val observable = RxAsyncFactory.later { 3 }
+        observable.subscribe({ println(it) })
+        observable.subscribe({ println(it) })
 
         Thread.sleep(200L)
     }
@@ -23,20 +22,20 @@ class CouplerTest {
     fun veryNoStackOverflow() {
 
         a = -10
-        val source = CFAsyncFactory.source<Int>()
-        source.subscribe { println(it) }
-        conduct(10_000, source)
+        val subject = RxAsyncFactory.subject<Int>()
+        subject.subscribe({ println(it) })
+        conduct(1_000, subject)
 
         Thread.sleep(3_000)
 
         assertEquals(0, a)
     }
 
-    private fun conduct(i: Int, o: Observer<Int>) {
+    private fun conduct(i: Int, o: AsyncListener<Int>) {
 
         if (i >= 0)
-            CFAsyncFactory
-                .supplyOne { i }
+            RxAsyncFactory
+                .later { i }
                 .subscribe({
                                a = it
                                o.onNext(it)

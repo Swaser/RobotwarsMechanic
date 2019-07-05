@@ -1,13 +1,12 @@
 package com.noser.robotwars.mechanic
 
-import io.reactivex.Observable
-import io.reactivex.subjects.Subject
+interface AsyncSubject<T> : Async<T>, AsyncListener<T>
 
 interface AsyncFactory {
 
-    fun <A> supplyOne(supplier : () -> A) : Observable<A>
+    fun <E> later(supplier : () -> E) : Async<E>
 
-    fun <A> just(a : A) : Observable<A>
+    fun <E> just(element : E) : Async<E>
 
-    fun <A> source() : Subject<A>
+    fun <E> subject() : AsyncSubject<E>
 }
