@@ -16,11 +16,11 @@ class MoveTest {
         val bounds = Bounds(0..10, 0..10)
 
         val channelYellow = TestCommChannel()
-        val competitorYellow = Competitor(UUID.randomUUID(), "Yellow", channelYellow)
+        val competitorYellow = Competitor(UUID.randomUUID(), "Yellow", "Team 1", channelYellow)
         channelYellow.competitor = competitorYellow
 
         val channelBlue = TestCommChannel()
-        val competitorBlue = Competitor(UUID.randomUUID(), "Blue", channelYellow)
+        val competitorBlue = Competitor(UUID.randomUUID(), "Blue", "Team 2", channelYellow)
         channelBlue.competitor = competitorBlue
 
         val competitors = mutableListOf(competitorYellow, competitorBlue)

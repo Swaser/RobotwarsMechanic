@@ -5,15 +5,16 @@ import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Move
 import java.util.*
 
+/**
+ * Represents an active agent in a Tournament. Could be an AI or a human.
+ */
 data class Competitor(val uuid: UUID,
                       val name: String,
+                      val team: String,
                       private val commChannel: CommChannel) {
 
-    @Volatile
-    private var harakiri: Boolean = false
-
     fun harakiri() {
-        harakiri = true
+        commChannel.disconnect()
     }
 
     fun notify(bout: Bout) {
@@ -25,10 +26,7 @@ data class Competitor(val uuid: UUID,
     }
 
     fun nextMove(arena: Arena): Move? {
-        return when {
-            harakiri -> null
-            else -> commChannel.nextMove(arena)
-        }
+        return commChannel.nextMove(arena)
     }
 
     fun publishResult(arena: Arena,

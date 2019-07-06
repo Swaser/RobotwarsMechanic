@@ -1,12 +1,14 @@
 package com.noser.robotwars.mechanic.tournament
 
+import com.noser.robotwars.mechanic.Async
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.tournament.TournamentState.OPEN
 import com.noser.robotwars.mechanic.tournament.TournamentState.STARTED
 import java.util.*
 
-class Tournament(val tournamentName: String,
+class Tournament(asyncFactory: AsyncFactory,
+                 val tournamentName: String,
                  private val boutGenerator: (Set<Competitor>) -> Set<Bout>) {
 
     val uuid: UUID = UUID.randomUUID()
@@ -24,15 +26,24 @@ class Tournament(val tournamentName: String,
 
     private var tournamentState = OPEN
 
-    fun startTournament(asyncFactory: AsyncFactory) {
+    private val subject = asyncFactory.subject<Bout>()
+
+    private fun observe(): Async<Bout> = subject
+
+    fun start(): Async<Bout> {
         check(tournamentState == OPEN)
         check(competitors.size > 1)
 
+        notPlaying.addAll(competitors)
         openBouts.addAll(boutGenerator(competitors))
+
         tournamentState = STARTED
-        startNextRoundOfBouts(asyncFactory)
 
         competitors.forEach { it.notify(this) }
+
+        startNextRoundOfBouts()
+
+        return observe()
     }
 
     fun isOpen(): Boolean {
@@ -51,12 +62,8 @@ class Tournament(val tournamentName: String,
     fun getStatistics(): TournamentStatistics = TODO()
 
     /** call this fun repeatedly until tournament done */
-    private fun startNextRoundOfBouts(asyncFactory: AsyncFactory) {
-
-        asyncFactory.supplyAsync {
-            notPlaying.addAll(competitors)
-            findStartableBouts().forEach { startBout(it, asyncFactory) }
-        }
+    private fun startNextRoundOfBouts() {
+        findStartableBouts().forEach { startBout(it) }
     }
 
     @Synchronized
@@ -76,17 +83,12 @@ class Tournament(val tournamentName: String,
     }
 
     @Synchronized
-    private fun startBout(bout: Bout, asyncFactory: AsyncFactory) {
+    private fun startBout(bout: Bout) {
         registerBoutStarted(bout)
-        bout.conductBout(asyncFactory)
-            .finally { _, throwable ->
-                if (throwable == null) {
-                    registerBoutEnded(bout)
-                } else {
-                    // TODO put it into some intermediate state
-                    // TODO allow the reason to be analyzed and the bout to be retried OR the bout to be resolved manually
-                }
-            }
+        bout.conductBout()
+            .subscribe({ /* ignore onNext() */ },
+                       { /* TODO onError */ },
+                       { registerBoutEnded(bout) })
     }
 
     @Synchronized
@@ -107,6 +109,13 @@ class Tournament(val tournamentName: String,
         completedBouts.add(bout)
 
         updateStatistics(bout)
+
+        if(runningBouts.isNotEmpty()) {
+            startNextRoundOfBouts()
+            subject.onNext(bout)
+        } else {
+            subject.onComplete()
+        }
     }
 
     private fun updateStatistics(bout: Bout) {
@@ -133,5 +142,9 @@ class Tournament(val tournamentName: String,
 
     fun getAllBouts(): List<Bout> {
         return openBouts.union(runningBouts).union(completedBouts).toList()
+    }
+
+    fun hasCompleted(): Boolean {
+        return openBouts.isEmpty()
     }
 }

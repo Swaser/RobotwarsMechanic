@@ -25,4 +25,9 @@ interface CommChannel {
     fun publishResult(arena: Arena, winner: Competitor?)
 
     fun publishErrorHappened(arena: Arena, throwable: Throwable)
+
+    /**
+     * Channel is dead
+     */
+    fun disconnect()
 }

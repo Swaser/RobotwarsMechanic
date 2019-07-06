@@ -1,15 +1,22 @@
 package com.noser.robotwars.mechanic
 
-interface Async<U> {
+interface AsyncListener<E> {
 
-    fun done(u: U): Async<U>
+    fun onNext(element: E)
 
-    fun exception(t: Throwable): Async<U>
+    fun onError(throwable: Throwable)
 
-    fun <V> map(f: (U) -> V): Async<V>
-
-    fun <V> flatMap(f: (U) -> Async<V>): Async<V>
-
-    fun finally(f: (U, Throwable?) -> Unit)
+    fun onComplete()
 }
 
+interface Async<E> {
+
+    fun <F> flatMap(mapper: (E) -> Async<F>): Async<F>
+
+    fun subscribe(listener: AsyncListener<E>): Async<E> =
+        subscribe(listener::onNext, listener::onError, listener::onComplete)
+
+    fun subscribe(onNext: (E) -> Unit,
+                  onError: (Throwable) -> Unit = {},
+                  onComplete: () -> Unit = {}): Async<E>
+}

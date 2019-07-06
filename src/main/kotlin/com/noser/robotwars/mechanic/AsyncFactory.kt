@@ -1,11 +1,12 @@
 package com.noser.robotwars.mechanic
 
+interface AsyncSubject<T> : Async<T>, AsyncListener<T>
+
 interface AsyncFactory {
 
-    fun <A> supplyAsync(supplier: () -> A): Async<A>
+    fun <E> later(supplier : () -> E) : Async<E>
 
-    fun <A> direct(a: A): Async<A>
+    fun <E> just(element : E) : Async<E>
 
-    fun <A> deferred(): Async<A>
-
+    fun <E> subject() : AsyncSubject<E>
 }
