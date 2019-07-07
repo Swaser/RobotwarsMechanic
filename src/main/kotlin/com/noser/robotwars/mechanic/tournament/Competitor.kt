@@ -3,6 +3,7 @@ package com.noser.robotwars.mechanic.tournament
 import com.noser.robotwars.mechanic.bout.Arena
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Move
+import com.noser.robotwars.mechanic.team.Team
 import java.util.*
 
 /**
@@ -10,7 +11,7 @@ import java.util.*
  */
 data class Competitor(val uuid: UUID,
                       val name: String,
-                      val team: String,
+                      val team: Team,
                       private val commChannel: CommChannel) {
 
     fun harakiri() {
@@ -50,6 +51,6 @@ data class Competitor(val uuid: UUID,
     }
 
     override fun toString(): String {
-        return name
+        return "$name (of Team $team)"
     }
 }
