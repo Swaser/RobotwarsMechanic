@@ -8,9 +8,9 @@ data class Position(val row: Int,
     fun move(direction: Direction?, bounds: Bounds): Position? =
         when (direction) {
             Direction.N -> if (row - 1 in bounds.rows) Position(row - 1, col) else null
-            Direction.E -> if (col - 1 in bounds.cols) Position(row, col - 1) else null
+            Direction.E -> if (col + 1 in bounds.cols) Position(row, col + 1) else null
             Direction.S -> if (row + 1 in bounds.rows) Position(row + 1, col) else null
-            Direction.W -> if (col + 1 in bounds.cols) Position(row, col + 1) else null
+            Direction.W -> if (col - 1 in bounds.cols) Position(row, col - 1) else null
             else -> null
         }
 
