@@ -1,6 +1,7 @@
 package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.TestCommChannel
+import com.noser.robotwars.mechanic.team.Team
 import com.noser.robotwars.mechanic.tournament.Competitor
 import org.junit.Ignore
 import org.junit.Test
@@ -16,11 +17,11 @@ class MoveTest {
         val bounds = Bounds(0..10, 0..10)
 
         val channelYellow = TestCommChannel()
-        val competitorYellow = Competitor(UUID.randomUUID(), "Yellow", "Team 1", channelYellow)
+        val competitorYellow = Competitor(UUID.randomUUID(), "Yellow", Team("Team 1"), channelYellow)
         channelYellow.competitor = competitorYellow
 
         val channelBlue = TestCommChannel()
-        val competitorBlue = Competitor(UUID.randomUUID(), "Blue", "Team 2", channelYellow)
+        val competitorBlue = Competitor(UUID.randomUUID(), "Blue", Team("Team 2"), channelYellow)
         channelBlue.competitor = competitorBlue
 
         val competitors = mutableListOf(competitorYellow, competitorBlue)

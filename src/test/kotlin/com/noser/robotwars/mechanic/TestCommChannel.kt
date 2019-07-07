@@ -35,4 +35,8 @@ class TestCommChannel: CommChannel {
     override fun notifyTournament(tournament: Tournament) {
 
     }
+
+    override fun disconnect() {
+
+    }
 }

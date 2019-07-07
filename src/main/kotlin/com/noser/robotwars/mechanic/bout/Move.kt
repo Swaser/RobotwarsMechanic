@@ -100,12 +100,25 @@ data class Move(val competitor: Competitor,
             else -> arena.resolveRamming(competitor, ramDirection)
         }
     }
+
+    fun startMove(arena: Arena): Detailed<Arena> {
+
+        if (directions.isEmpty()
+            && loadShield == 0
+            && shootDirection == null
+            && shootEnergy == 0
+            && ramDirection == null) {
+            return single(arena) { "$competitor passed" }
+        }
+        return single(arena) { "$competitor starts its move" }
+    }
 }
 
 object Moves {
 
     val applyMove: (Move) -> (Arena) -> Detailed<Arena> = { move ->
-        { arena -> (applyDirections(move) before
+        { arena -> (startMove(move) before
+                    lift(applyDirections(move)) before
                     lift(applyShieldLoading(move)) before
                     lift(applyFiring(move)) before
                     lift(applyRamming(move)))(arena)
@@ -119,4 +132,6 @@ object Moves {
     private fun applyRamming(move: Move): (Arena) -> Detailed<Arena> = { move.applyRamming(it) }
 
     private fun applyFiring(move: Move): (Arena) -> Detailed<Arena> = { move.applyFireCannon(it) }
+
+    private fun startMove(move: Move): (Arena) -> Detailed<Arena> = { move.startMove(it) }
 }
