@@ -2,11 +2,11 @@ package com.noser.robotwars.mechanic
 
 interface AsyncListener<E> {
 
-    fun onNext(element: E)
+    fun onNext(element: E) {}
 
-    fun onError(throwable: Throwable)
+    fun onError(throwable: Throwable) {}
 
-    fun onComplete()
+    fun onComplete() {}
 }
 
 interface Async<E> {

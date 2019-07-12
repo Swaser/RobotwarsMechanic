@@ -2,7 +2,6 @@ package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Bout
-import com.noser.robotwars.mechanic.bout.Player
 
 class Tournament(asyncFactory: AsyncFactory,
                  competitors: Set<Competitor>,

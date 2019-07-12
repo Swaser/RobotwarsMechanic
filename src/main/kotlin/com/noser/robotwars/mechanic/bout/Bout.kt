@@ -3,6 +3,7 @@ package com.noser.robotwars.mechanic.bout
 import com.noser.robotwars.mechanic.Async
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.AsyncListener
+import com.noser.robotwars.mechanic.Detailed
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
@@ -14,38 +15,35 @@ import kotlin.random.Random
  * The bout gets its own unique id so it can easily identified
  */
 class Bout(private val asyncFactory: AsyncFactory,
-           private val getCompetitor: (Player) -> Competitor,
+           private val competitors: Array<Competitor>,
            private val tournament: Tournament,
            @Volatile var state: BoutState = BoutState.REGISTERED) {
 
+    init {
+        check(competitors.size >= 2) { "Bout must have at least 2 competitors" }
+    }
+
     private val id: UUID = UUID.randomUUID()
 
-    private val subject = asyncFactory.subject<Bout>()
+    private val subject = asyncFactory.subject<Pair<BoutState, Detailed<Arena>>>()
 
     @Volatile
     lateinit var arena: Arena
 
-    val competitors = listOf(getCompetitor(Player.YELLOW), getCompetitor(Player.BLUE))
-
-    fun observe(): Async<Bout> = subject
-
-    fun conductBout(): Async<Bout> {
+    fun conductBout(): Async<Pair<BoutState, Detailed<Arena>>> {
         conductBoutRecursive()
-        return observe()
+        return subject
     }
 
     private val stillRunningObserver = object : AsyncListener<Bout> {
-        override fun onComplete() {}
         override fun onError(throwable: Throwable) = subject.onError(throwable)
         override fun onNext(bout: Bout) {
-            subject.onNext(bout)
             conductBoutRecursive()
         }
     }
 
     private val resolvedObserver = object : AsyncListener<Bout> {
         override fun onComplete() = subject.onComplete()
-        override fun onNext(bout: Bout) = subject.onNext(bout)
         override fun onError(throwable: Throwable) = subject.onError(throwable)
     }
 
@@ -57,17 +55,17 @@ class Bout(private val asyncFactory: AsyncFactory,
                 .later { start(tournament.parameters) }
                 .subscribe(stillRunningObserver)
 
-            BoutState.STARTED    -> asyncFactory
+            BoutState.STARTED -> asyncFactory
                 .later { nextMove() }
                 .subscribe(stillRunningObserver)
 
-            else                 -> {
-                val winner = state.winner()
+            else -> {
+                val winner = arena.winner
                 asyncFactory
                     .later {
-                        Player.values().forEach {
+                        competitors.forEach {
                             try {
-                                getCompetitor(it).commChannel.publishResult(arena, winner)
+                                it.commChannel.publishResult(arena, winner)
                             } catch (e: Exception) {
                                 // TODO what to do here
                             }
@@ -85,8 +83,8 @@ class Bout(private val asyncFactory: AsyncFactory,
         val terrain = createFreshTerrain(parameters, random)
 
         arena = Arena(
-            Player.YELLOW,
-            Player.values()
+            0,
+            (0 until competitors.size)
                 .fold(mutableListOf()) { list, player ->
                     val robot = Robot(player,
                                       createUniquePosition(parameters.bounds, random, list.map(Robot::position)),
@@ -112,6 +110,7 @@ class Bout(private val asyncFactory: AsyncFactory,
         )
 
         state = BoutState.STARTED
+        subject.onNext(Pair(state, Detailed.none(arena)))
         return this
     }
 
@@ -129,28 +128,29 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     private fun nextMove(): Bout {
 
-        val move = getCompetitor(arena.activePlayer)
+        val move = competitors[arena.activePlayer]
             .commChannel
             .nextMove(arena)
 
-        if (move == null) {
-            state = when (arena.activePlayer) {
-                Player.YELLOW -> BoutState.BLUE_WINS
-                else          -> BoutState.YELLOW_WINS
+        val detailedAfterMove =
+            if (move == null) {
+                // activePlayer's Robot dies because no response from competitor
+                arena.killRobot(arena.activePlayer)
+            } else {
+                applyMove(move)(arena)
             }
-        } else {
-            val (afterMove, messages) = applyMove(move)(arena)
-            arena = afterMove
-            // TODO advance active player
-            // TODO do something with the messages
-            val winner = afterMove.determineWinner()
-            if (winner != null) {
-                state = when (winner) {
-                    Player.YELLOW -> BoutState.YELLOW_WINS
-                    else          -> BoutState.BLUE_WINS
-                }
+
+        arena = detailedAfterMove
+            .map { it.nextPlayer() }
+            .value
+
+        arena.winner
+            ?.also {
+                state = BoutState.FINISHED
             }
-        }
+
+        subject.onNext(Pair(state, detailedAfterMove))
+
         return this
     }
 
@@ -176,11 +176,10 @@ class Bout(private val asyncFactory: AsyncFactory,
                 val rnd = random.nextDouble()
                 when {
                     rnd < parameters.chanceForWater -> Terrain.WATER
-                    rnd < parameters.chanceForRock  -> Terrain.ROCK
-                    else                            -> Terrain.GREEN
+                    rnd < parameters.chanceForRock -> Terrain.ROCK
+                    else -> Terrain.GREEN
                 }
             }
         }
-
     }
 }
