@@ -3,6 +3,7 @@ package com.noser.robotwars.mechanic.tournament
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Player
+import java.util.concurrent.Flow
 
 class Tournament(asyncFactory: AsyncFactory,
                  competitors: Set<Competitor>,
@@ -49,9 +50,18 @@ class Tournament(asyncFactory: AsyncFactory,
     private fun startBout(bout: Bout) {
         registerBoutStarted(bout)
         bout.conductBout()
-            .subscribe({ /* ignore onNext() */ },
-                       { /* TODO onError */ },
-                       { registerBoutEnded(bout) })
+            .subscribe(object : Flow.Subscriber<Bout> {
+                override fun onComplete() {
+                    registerBoutEnded(bout)
+                }
+
+                override fun onSubscribe(subscription: Flow.Subscription) {
+                    subscription.request(Long.MAX_VALUE)
+                }
+
+                override fun onNext(item: Bout) {}
+                override fun onError(throwable: Throwable?) {} // TODO
+            })
     }
 
     @Synchronized
@@ -102,7 +112,7 @@ class Tournament(asyncFactory: AsyncFactory,
             return {
                 when (it) {
                     Player.YELLOW -> c1
-                    Player.BLUE -> c2
+                    Player.BLUE   -> c2
                 }
             }
         }

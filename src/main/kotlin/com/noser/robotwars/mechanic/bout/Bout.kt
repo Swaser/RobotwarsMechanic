@@ -1,13 +1,12 @@
 package com.noser.robotwars.mechanic.bout
 
-import com.noser.robotwars.mechanic.Async
 import com.noser.robotwars.mechanic.AsyncFactory
-import com.noser.robotwars.mechanic.AsyncListener
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.Tournament
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
 import java.util.*
+import java.util.concurrent.Flow
 import kotlin.random.Random
 
 /**
@@ -27,14 +26,18 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     val competitors = listOf(getCompetitor(Player.YELLOW), getCompetitor(Player.BLUE))
 
-    fun observe(): Async<Bout> = subject
+    fun observe(): Flow.Publisher<Bout> = subject
 
-    fun conductBout(): Async<Bout> {
+    fun conductBout(): Flow.Publisher<Bout> {
         conductBoutRecursive()
         return observe()
     }
 
-    private val stillRunningObserver = object : AsyncListener<Bout> {
+    private val stillRunningObserver = object : Flow.Subscriber<Bout> {
+        override fun onSubscribe(subscription: Flow.Subscription) {
+            subscription.request(Long.MAX_VALUE)
+        }
+
         override fun onComplete() {}
         override fun onError(throwable: Throwable) = subject.onError(throwable)
         override fun onNext(bout: Bout) {
@@ -43,7 +46,11 @@ class Bout(private val asyncFactory: AsyncFactory,
         }
     }
 
-    private val resolvedObserver = object : AsyncListener<Bout> {
+    private val resolvedObserver = object : Flow.Subscriber<Bout> {
+        override fun onSubscribe(subscription: Flow.Subscription) {
+            subscription.request(Long.MAX_VALUE)
+        }
+
         override fun onComplete() = subject.onComplete()
         override fun onNext(bout: Bout) = subject.onNext(bout)
         override fun onError(throwable: Throwable) = subject.onError(throwable)

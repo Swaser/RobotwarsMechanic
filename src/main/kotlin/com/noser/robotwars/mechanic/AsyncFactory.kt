@@ -1,12 +1,12 @@
 package com.noser.robotwars.mechanic
 
-interface AsyncSubject<T> : Async<T>, AsyncListener<T>
+import java.util.concurrent.Flow
 
 interface AsyncFactory {
 
-    fun <E> later(supplier : () -> E) : Async<E>
+    fun <E> later(supplier: () -> E): Flow.Publisher<E>
 
-    fun <E> just(element : E) : Async<E>
+    fun <E> just(element: E): Flow.Publisher<E>
 
-    fun <E> subject() : AsyncSubject<E>
+    fun <E> subject(): Flow.Processor<E, E>
 }

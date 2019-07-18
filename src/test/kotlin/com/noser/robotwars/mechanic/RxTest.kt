@@ -1,8 +1,6 @@
 package com.noser.robotwars.mechanic
 
-import io.reactivex.Observable
 import io.reactivex.Single
-import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import org.junit.Test
 
