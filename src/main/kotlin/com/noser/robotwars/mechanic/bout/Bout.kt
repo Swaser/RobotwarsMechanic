@@ -15,7 +15,7 @@ import kotlin.random.Random
  * The bout gets its own unique id so it can easily identified
  */
 class Bout(private val asyncFactory: AsyncFactory,
-           private val competitors: Array<Competitor>,
+           val competitors: List<Competitor>,
            private val tournament: Tournament,
            @Volatile var state: BoutState = BoutState.REGISTERED) {
 

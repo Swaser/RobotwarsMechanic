@@ -1,11 +1,10 @@
 package com.noser.robotwars.mechanic.tournament
 
-import com.noser.robotwars.mechanic.bout.Player
 import java.util.*
 
 data class BoutResult(val boutId: UUID,
-                      val competitors: Map<Competitor, Player>,
-                      val winner: Player) {
+                      val competitors: Map<Competitor, Int>,
+                      val winner: Int) {
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

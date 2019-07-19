@@ -9,7 +9,7 @@ class Tournament(asyncFactory: AsyncFactory,
 
     private val openBouts: MutableSet<Bout> =
         generatePairs(competitors.asSequence())
-            .map { (c1, c2) -> Bout(asyncFactory, makePlayers(c1, c2), this) }
+            .map { (c1, c2) -> Bout(asyncFactory, listOf(c1, c2), this) }
             .toMutableSet()
 
     private val runningBouts = mutableSetOf<Bout>()
@@ -32,12 +32,12 @@ class Tournament(asyncFactory: AsyncFactory,
     fun findStartableBouts(): List<Bout> {
 
         val res: MutableList<Bout> = mutableListOf()
-        val players = notPlaying.toMutableSet()
+        val toAssign = notPlaying.toMutableSet()
         for (openBout in openBouts) {
-            if (players.size < 2) continue
-            if (players.containsAll(openBout.competitors)) {
+            if (toAssign.size < 2) continue
+            if (toAssign.containsAll(openBout.competitors)) {
                 res.add(openBout)
-                players.removeAll(openBout.competitors)
+                toAssign.removeAll(openBout.competitors)
             }
         }
 
@@ -74,7 +74,8 @@ class Tournament(asyncFactory: AsyncFactory,
     }
 
     private fun updateStatistics(bout: Bout) {
-        check(bout.state.winner() != null)
+
+        check(bout.arena.winner != null)
 
         // TODO update statistics so it can easily be displayed
     }
@@ -96,15 +97,6 @@ class Tournament(asyncFactory: AsyncFactory,
     }
 
     companion object {
-
-        private fun makePlayers(c1: Competitor, c2: Competitor): (Player) -> Competitor {
-            return {
-                when (it) {
-                    Player.YELLOW -> c1
-                    Player.BLUE -> c2
-                }
-            }
-        }
 
         private fun <X> generatePairs(xs: Sequence<X>) = xs
             .flatMap { x -> xs.map { y -> Pair(x, y) } }
