@@ -23,7 +23,7 @@ object RxAsyncFactory : AsyncFactory {
                     emitter.onError(throwable)
                 }
             }
-        }.cache().toFlowable(BackpressureStrategy.BUFFER)
+        }.cache().toFlowable(BackpressureStrategy.LATEST)
 
         return FlowAdapters.toFlowPublisher(observable)
     }

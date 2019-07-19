@@ -6,30 +6,15 @@ import kotlin.test.assertEquals
 
 class RxAsyncFactoryTest {
 
-    val subscriber = object : Flow.Subscriber<Int> {
-        override fun onComplete() {}
-
-        override fun onSubscribe(subscription: Flow.Subscription) {}
-
-        override fun onNext(item: Int) {
-            println(item)
-        }
-
-        override fun onError(throwable: Throwable) {
-            print(throwable.stackTrace.joinToString("\n"))
-        }
-    }
-
     @Volatile
     var a: Int = -10
 
     @Test
     fun testSupplyOne() {
 
-
-        val observable = RxAsyncFactory.later { 3 }
-        observable.subscribe(subscriber)
-        observable.subscribe(subscriber)
+        val observable = RxAsyncFactory.just(3)
+        observable.subscribe(AsyncFactory.subscriber({ println(it) }))
+        observable.subscribe(AsyncFactory.subscriber({ println(it) }))
 
         Thread.sleep(200L)
     }
@@ -39,7 +24,7 @@ class RxAsyncFactoryTest {
 
         a = -10
         val subject = RxAsyncFactory.subject<Int>()
-        subject.subscribe(subscriber)
+        subject.subscribe(AsyncFactory.subscriber({ println(it) }))
         conduct(1_000, subject)
 
         Thread.sleep(3_000)
@@ -52,24 +37,11 @@ class RxAsyncFactoryTest {
         if (i >= 0)
             RxAsyncFactory
                 .later { i }
-                .subscribe(object : Flow.Subscriber<Int> {
-
-                    override fun onComplete() {
-                        println(a)
-                    }
-
-                    override fun onSubscribe(subscription: Flow.Subscription) {}
-
-                    override fun onNext(item: Int) {
-                        a = item
-                        o.onNext(item)
-                        conduct(item -1, o)
-                    }
-
-                    override fun onError(throwable: Throwable) {
-                        print(throwable.stackTrace.joinToString("\n"))
-                    }
-                })
+                .subscribe(AsyncFactory.subscriber({
+                                                       a = it
+                                                       o.onNext(it)
+                                                       conduct(it - 1, o)
+                                                   }))
     }
 }
 
