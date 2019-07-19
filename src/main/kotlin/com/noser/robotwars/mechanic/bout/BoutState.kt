@@ -2,12 +2,8 @@ package com.noser.robotwars.mechanic.bout
 
 enum class BoutState {
 
-    REGISTERED, STARTED, YELLOW_WINS, BLUE_WINS, DRAW;
-
-    fun winner(): Player? = when (this) {
-        YELLOW_WINS -> Player.YELLOW
-        BLUE_WINS -> Player.BLUE
-        else -> null
-    }
-
+    REGISTERED,
+    STARTED,
+    FINISHED,
+    ERROR
 }

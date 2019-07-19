@@ -4,7 +4,7 @@ import com.noser.robotwars.mechanic.Detailed
 import com.noser.robotwars.mechanic.Detailed.Companion.single
 import kotlin.math.min
 
-class Robot(val player: Player,
+class Robot(val player: Int,
             val position: Position,
             val energy: Int,
             val maxEnergy: Int,
@@ -60,7 +60,7 @@ class Robot(val player: Player,
         }
     }
 
-    fun ram(dir : Direction) : Detailed<Robot> {
+    fun ram(dir: Direction): Detailed<Robot> {
         check(energy >= 1) { "robot must have at least 1 energy to ram" }
         return single(update(energy - 1)) {
             "$player rams $dir  (E=${it.energy},S=${it.shield},H=${it.health})"

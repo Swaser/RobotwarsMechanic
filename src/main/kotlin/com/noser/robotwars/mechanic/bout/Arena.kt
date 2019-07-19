@@ -4,16 +4,45 @@ import com.noser.robotwars.mechanic.Detailed
 import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
 
-data class Arena(val activePlayer: Player,
+data class Arena(val activePlayer: Int,
                  private val robots: List<Robot>,
                  val bounds: Bounds,
                  val terrain: Grid<Terrain>,
                  private val effects: Grid<Effect>) {
 
+
+    val winner by lazy {
+
+        var numNonZero = 0
+        var firstNonZero = -1
+        robots.forEachIndexed { index, robot ->
+            if (robot.health > 0) {
+                numNonZero++
+                if (firstNonZero < 0) firstNonZero = index
+            }
+        }
+        if (numNonZero == 0) error("No robot with health > 0 found")
+        else if (numNonZero == 1) firstNonZero
+        else null
+    }
+
+
+    fun nextPlayer(): Arena {
+
+        if (winner != null) return this
+        else {
+            var c = activePlayer
+            do {
+                c = (c + 1) % robots.size
+            } while (robots[c].health <= 0)
+            return copy(activePlayer = c)
+        }
+    }
+
     /**
      * Includes effects
      */
-    fun moveTo(player: Player, position: Position, cost: Int): Detailed<Arena> {
+    fun moveTo(player: Int, position: Position, cost: Int): Detailed<Arena> {
         return findRobot(player)
             .moveTo(position, cost)
             .map { withRobots(it) }
@@ -23,7 +52,7 @@ data class Arena(val activePlayer: Player,
     /**
      * Includes effects
      */
-    fun resolveFiring(player: Player, dir: Direction, amount: Int): Detailed<Arena> =
+    fun resolveFiring(player: Int, dir: Direction, amount: Int): Detailed<Arena> =
 
         findRobot(player).fireCannon(dir, amount).flatMap { (robot, dmg) ->
             val shotTrajectory = generateSequence(robot.position.move(dir, bounds)) { it.move(dir, bounds) }
@@ -43,11 +72,11 @@ data class Arena(val activePlayer: Player,
             }
         }
 
-    fun loadShield(player: Player, amount: Int): Detailed<Arena> {
+    fun loadShield(player: Int, amount: Int): Detailed<Arena> {
         return findRobot(player).loadShield(amount).map { withRobots(it) }
     }
 
-    fun resolveRamming(player: Player, dir: Direction): Detailed<Arena> {
+    fun resolveRamming(player: Int, dir: Direction): Detailed<Arena> {
 
         val robot = findRobot(player)
         return robot.ram(dir).map { withRobots(it) }.flatMap { arena ->
@@ -87,7 +116,7 @@ data class Arena(val activePlayer: Player,
         }
     }
 
-    private fun takeSimpleDamage(player: Player, amount: Int): Detailed<Arena> {
+    private fun takeSimpleDamage(player: Int, amount: Int): Detailed<Arena> {
         return findRobot(player).takeDamage(amount).map { withRobots(it) }
     }
 
@@ -107,7 +136,7 @@ data class Arena(val activePlayer: Player,
         return null
     }
 
-    fun applyEffects(player: Player): Detailed<Arena> {
+    fun applyEffects(player: Int): Detailed<Arena> {
         val robot = findRobot(player)
         return when (effects[robot.position]) {
             is Effect.Fire -> single(this) { "$player is in fire" }.flatMap {
@@ -119,15 +148,15 @@ data class Arena(val activePlayer: Player,
 
     fun findRobot(position: Position) = robots.find { it.position == position }
 
-    fun findRobot(player: Player) =
-        robots.find { it.player == player } ?: throw IllegalArgumentException("Robot $player not found")
+    fun killRobot(player: Int): Detailed<Arena> {
+        // TODO something else than takeDamage
+        return findRobot(player).takeDamage(10_000_000).map { withRobots(it) }
+    }
 
-    private fun withRobots(vararg robot: Robot) =
-        copy(robots = robots.map { existing ->
-            robot.find { it.player == existing.player } ?: existing
-        })
+    fun findRobot(player: Int) = robots.find { it.player == player } ?: error("Robot $player not found")
+
+    private fun withRobots(vararg replacements: Robot): Arena =
+        copy(robots = robots.map { existing -> replacements.find { it.player == existing.player } ?: existing })
 
     private fun withEffects(effects: Grid<Effect>) = copy(effects = effects)
-
-    fun determineWinner(): Player? = TODO()
 }

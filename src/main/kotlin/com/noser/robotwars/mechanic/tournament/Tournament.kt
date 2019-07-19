@@ -1,8 +1,10 @@
 package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
+import com.noser.robotwars.mechanic.Detailed
+import com.noser.robotwars.mechanic.bout.Arena
 import com.noser.robotwars.mechanic.bout.Bout
-import com.noser.robotwars.mechanic.bout.Player
+import com.noser.robotwars.mechanic.bout.BoutState
 import java.util.concurrent.Flow
 
 class Tournament(asyncFactory: AsyncFactory,
@@ -11,7 +13,7 @@ class Tournament(asyncFactory: AsyncFactory,
 
     private val openBouts: MutableSet<Bout> =
         generatePairs(competitors.asSequence())
-            .map { (c1, c2) -> Bout(asyncFactory, makePlayers(c1, c2), this) }
+            .map { (c1, c2) -> Bout(asyncFactory, listOf(c1, c2), this) }
             .toMutableSet()
 
     private val runningBouts = mutableSetOf<Bout>()
@@ -34,12 +36,12 @@ class Tournament(asyncFactory: AsyncFactory,
     fun findStartableBouts(): List<Bout> {
 
         val res: MutableList<Bout> = mutableListOf()
-        val players = notPlaying.toMutableSet()
+        val toAssign = notPlaying.toMutableSet()
         for (openBout in openBouts) {
-            if (players.size < 2) continue
-            if (players.containsAll(openBout.competitors)) {
+            if (toAssign.size < 2) continue
+            if (toAssign.containsAll(openBout.competitors)) {
                 res.add(openBout)
-                players.removeAll(openBout.competitors)
+                toAssign.removeAll(openBout.competitors)
             }
         }
 
@@ -48,9 +50,11 @@ class Tournament(asyncFactory: AsyncFactory,
 
     @Synchronized
     private fun startBout(bout: Bout) {
+
         registerBoutStarted(bout)
+
         bout.conductBout()
-            .subscribe(object : Flow.Subscriber<Bout> {
+            .subscribe(object : Flow.Subscriber<Pair<BoutState, Detailed<Arena>>> {
                 override fun onComplete() {
                     registerBoutEnded(bout)
                 }
@@ -59,7 +63,7 @@ class Tournament(asyncFactory: AsyncFactory,
                     subscription.request(Long.MAX_VALUE)
                 }
 
-                override fun onNext(item: Bout) {}
+                override fun onNext(item: Pair<BoutState, Detailed<Arena>>) {}
                 override fun onError(throwable: Throwable?) {} // TODO
             })
     }
@@ -85,7 +89,8 @@ class Tournament(asyncFactory: AsyncFactory,
     }
 
     private fun updateStatistics(bout: Bout) {
-        check(bout.state.winner() != null)
+
+        check(bout.arena.winner != null)
 
         // TODO update statistics so it can easily be displayed
     }
@@ -107,15 +112,6 @@ class Tournament(asyncFactory: AsyncFactory,
     }
 
     companion object {
-
-        private fun makePlayers(c1: Competitor, c2: Competitor): (Player) -> Competitor {
-            return {
-                when (it) {
-                    Player.YELLOW -> c1
-                    Player.BLUE   -> c2
-                }
-            }
-        }
 
         private fun <X> generatePairs(xs: Sequence<X>) = xs
             .flatMap { x -> xs.map { y -> Pair(x, y) } }

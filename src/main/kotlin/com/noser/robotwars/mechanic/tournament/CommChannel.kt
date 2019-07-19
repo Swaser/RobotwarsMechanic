@@ -2,7 +2,6 @@ package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.bout.Arena
 import com.noser.robotwars.mechanic.bout.Move
-import com.noser.robotwars.mechanic.bout.Player
 
 interface CommChannel {
 
@@ -12,7 +11,7 @@ interface CommChannel {
     fun nextMove(arena: Arena) : Move?
 
     /** null means draw */
-    fun publishResult(arena: Arena, winner : Player?)
+    fun publishResult(arena: Arena, winner : Int?)
 
     fun publishErrorHappened(arena: Arena, throwable: Throwable)
 }
