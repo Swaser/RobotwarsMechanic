@@ -12,7 +12,7 @@ class TestCommChannel: CommChannel {
     var competitor: Competitor? = null
 
     override fun nextMove(arena: Arena): Move? {
-        return Move(competitor!!,
+        return Move(0,
              listOf(),
             0,
             null,
@@ -20,7 +20,7 @@ class TestCommChannel: CommChannel {
             null)
     }
 
-    override fun publishResult(arena: Arena, winner: Competitor?) {
+    override fun publishResult(arena: Arena, winner: Competitor) {
 
     }
 

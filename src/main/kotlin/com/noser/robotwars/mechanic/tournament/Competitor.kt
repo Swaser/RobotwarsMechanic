@@ -12,7 +12,7 @@ import java.util.*
 data class Competitor(val uuid: UUID,
                       val name: String,
                       val team: Team,
-                      private val commChannel: CommChannel) {
+                      val commChannel: CommChannel) {
 
     fun harakiri() {
         commChannel.disconnect()
@@ -31,7 +31,7 @@ data class Competitor(val uuid: UUID,
     }
 
     fun publishResult(arena: Arena,
-                      winner: Competitor?) {
+                      winner: Competitor) {
         commChannel.publishResult(arena, winner)
     }
 

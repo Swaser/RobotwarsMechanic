@@ -1,17 +1,26 @@
 package com.noser.robotwars.mechanic.tournament
 
-import com.noser.robotwars.mechanic.Async
 import com.noser.robotwars.mechanic.AsyncFactory
+import com.noser.robotwars.mechanic.Detailed
+import com.noser.robotwars.mechanic.bout.Arena
 import com.noser.robotwars.mechanic.bout.Bout
+import com.noser.robotwars.mechanic.bout.BoutState
 import com.noser.robotwars.mechanic.tournament.TournamentState.OPEN
 import com.noser.robotwars.mechanic.tournament.TournamentState.STARTED
 import java.util.*
+import java.util.concurrent.Flow
 
-class Tournament(asyncFactory: AsyncFactory,
+class Tournament(private val asyncFactory: AsyncFactory,
                  val tournamentName: String,
                  private val boutGenerator: (Set<Competitor>) -> Set<Bout>) {
 
     val uuid: UUID = UUID.randomUUID()
+
+    @Volatile
+    var state: TournamentState = OPEN
+        private set
+
+    val competitors = mutableSetOf<Competitor>()
 
     private val openBouts = mutableSetOf<Bout>()
 
@@ -21,25 +30,35 @@ class Tournament(asyncFactory: AsyncFactory,
 
     private val notPlaying = mutableSetOf<Competitor>()
 
-    var competitors = mutableSetOf<Competitor>()
-        private set
-
-    private var tournamentState = OPEN
-
     private val subject = asyncFactory.subject<Bout>()
 
-    private fun observe(): Async<Bout> = subject
+    private fun observe(): Flow.Processor<Bout, Bout> = subject
 
-    fun start(): Async<Bout> {
-        check(tournamentState == OPEN)
-        check(competitors.size > 1)
+    fun getStatistics(): TournamentStatistics = TODO()
+
+    /** call this fun repeatedly until tournament done */
+    fun startNextRoundOfBouts() {
+        val findStartableBouts = findStartableBouts()
+        if (findStartableBouts.isEmpty()) {
+            updateTournamentState(TournamentState.FINISHED)
+        } else {
+            findStartableBouts.forEach { startBout(it) }
+        }
+    }
+
+    private fun updateTournamentState(tournamentState: TournamentState) {
+        state = tournamentState
+        notifyTournamentUpdated(competitors.toList(), this)
+    }
+
+    fun start(): Flow.Processor<Bout, Bout> {
+        check(state == OPEN)
+        check(competitors.size >= 2)
 
         notPlaying.addAll(competitors)
         openBouts.addAll(boutGenerator(competitors))
 
-        tournamentState = STARTED
-
-        competitors.forEach { it.notify(this) }
+        updateTournamentState(STARTED)
 
         startNextRoundOfBouts()
 
@@ -47,23 +66,16 @@ class Tournament(asyncFactory: AsyncFactory,
     }
 
     fun isOpen(): Boolean {
-        return tournamentState == OPEN
+        return state == OPEN
     }
 
     fun isStarted(): Boolean {
-        return tournamentState == STARTED
+        return state == STARTED
     }
 
     fun addCompetitor(competitor: Competitor) {
-        check(tournamentState == OPEN)
+        check(state == OPEN)
         competitors.add(competitor)
-    }
-
-    fun getStatistics(): TournamentStatistics = TODO()
-
-    /** call this fun repeatedly until tournament done */
-    private fun startNextRoundOfBouts() {
-        findStartableBouts().forEach { startBout(it) }
     }
 
     @Synchronized
@@ -84,11 +96,22 @@ class Tournament(asyncFactory: AsyncFactory,
 
     @Synchronized
     private fun startBout(bout: Bout) {
+
         registerBoutStarted(bout)
+
         bout.conductBout()
-            .subscribe({ /* ignore onNext() */ },
-                       { /* TODO onError */ },
-                       { registerBoutEnded(bout) })
+            .subscribe(object : Flow.Subscriber<Pair<BoutState, Detailed<Arena>>> {
+                override fun onComplete() {
+                    registerBoutEnded(bout)
+                }
+
+                override fun onSubscribe(subscription: Flow.Subscription) {
+                    subscription.request(Long.MAX_VALUE)
+                }
+
+                override fun onNext(item: Pair<BoutState, Detailed<Arena>>) = Unit
+                override fun onError(throwable: Throwable?) = Unit // TODO
+            })
     }
 
     @Synchronized
@@ -98,6 +121,8 @@ class Tournament(asyncFactory: AsyncFactory,
 
         runningBouts.add(bout)
         openBouts.remove(bout)
+
+        notifyBoutUpdated(bout.competitors, bout)
     }
 
     @Synchronized
@@ -107,6 +132,8 @@ class Tournament(asyncFactory: AsyncFactory,
 
         runningBouts.remove(bout)
         completedBouts.add(bout)
+
+        notifyBoutUpdated(bout.competitors, bout)
 
         updateStatistics(bout)
 
@@ -118,8 +145,23 @@ class Tournament(asyncFactory: AsyncFactory,
         }
     }
 
+    private fun notifyBoutUpdated(competitors: List<Competitor>,
+                                  bout: Bout) {
+        competitors.forEach { it.notify(bout) }
+
+        //TODO also notify spectators spectators[boutUuid]?.forEach { it.notify(bout) }
+    }
+
+    private fun notifyTournamentUpdated(competitors: List<Competitor>,
+                                        tournament: Tournament) {
+        competitors.forEach { it.notify(tournament) }
+
+        //TODO also notify spectators spectators[tournamentUuid]?.forEach { it.notify(tournament) }
+    }
+
     private fun updateStatistics(bout: Bout) {
-        check(bout.arena.hasAWinner())
+
+        check(bout.arena.winner != null)
 
         // TODO update statistics so it can easily be displayed
     }

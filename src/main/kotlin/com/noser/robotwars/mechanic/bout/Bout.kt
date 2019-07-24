@@ -1,30 +1,35 @@
 package com.noser.robotwars.mechanic.bout
 
-import com.noser.robotwars.mechanic.Async
 import com.noser.robotwars.mechanic.AsyncFactory
-import com.noser.robotwars.mechanic.AsyncListener
-import com.noser.robotwars.mechanic.bout.BoutState.FINISHED
-import com.noser.robotwars.mechanic.bout.BoutState.REGISTERED
-import com.noser.robotwars.mechanic.bout.BoutState.STARTED
+import com.noser.robotwars.mechanic.Detailed
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
-import java.lang.IllegalStateException
 import java.util.*
+import java.util.concurrent.Flow
 import kotlin.random.Random
 
 /**
- * The bout gets its own unique id so it can easily be identified
+ * The bout gets its own unique uuid so it can easily identified
  */
 class Bout(private val asyncFactory: AsyncFactory,
            val competitors: List<Competitor>,
            val tournamentParameters: TournamentParameters) {
 
+    init {
+        check(competitors.size >= 2) { "Bout must have at least 2 competitors" }
+    }
+
     val uuid: UUID = UUID.randomUUID()
 
     @Volatile
-    var boutState: BoutState = REGISTERED
+    var state: BoutState = BoutState.REGISTERED
         private set
+
+    var winner: Competitor? = null
+        private set
+
+    private val subject = asyncFactory.subject<Pair<BoutState, Detailed<Arena>>>()
 
     @Volatile
     lateinit var arena: Arena
@@ -34,48 +39,58 @@ class Bout(private val asyncFactory: AsyncFactory,
         return if (::arena.isInitialized) arena else null
     }
 
-    private val subject = asyncFactory.subject<Bout>()
-
-    private fun observe(): Async<Bout> = subject
-
-    fun conductBout(): Async<Bout> {
+    fun conductBout(): Flow.Publisher<Pair<BoutState, Detailed<Arena>>> {
         conductBoutRecursive()
-        return observe()
+        return subject
     }
 
-    private val stillRunningObserver = object : AsyncListener<Bout> {
+    private val stillRunningObserver = object : Flow.Subscriber<Bout> {
+        override fun onSubscribe(subscription: Flow.Subscription) {
+            subscription.request(Long.MAX_VALUE)
+        }
+
         override fun onComplete() {}
         override fun onError(throwable: Throwable) = subject.onError(throwable)
-        override fun onNext(element: Bout) {
-            subject.onNext(element)
+        override fun onNext(bout: Bout) {
             conductBoutRecursive()
         }
     }
 
-    private val resolvedObserver = object : AsyncListener<Bout> {
+    private val resolvedObserver = object : Flow.Subscriber<Bout> {
+
+        override fun onNext(item: Bout) {}
+
+        override fun onSubscribe(subscription: Flow.Subscription) {
+            subscription.request(Long.MAX_VALUE)
+        }
+
         override fun onComplete() = subject.onComplete()
-        override fun onNext(element: Bout) = subject.onNext(element)
         override fun onError(throwable: Throwable) = subject.onError(throwable)
     }
 
     private fun conductBoutRecursive() {
 
-        when (boutState) {
+        when (state) {
 
-            REGISTERED -> asyncFactory
+            BoutState.REGISTERED -> asyncFactory
                 .later { start(tournamentParameters) }
                 .subscribe(stillRunningObserver)
 
-            STARTED    -> asyncFactory
+            BoutState.STARTED -> asyncFactory
                 .later { nextMove() }
                 .subscribe(stillRunningObserver)
 
-            else                 -> {
-                val winner = arena.getWinner()
-                    asyncFactory
+            else -> {
+                winner = arena.winner?.let{ competitors[it] }
+                val winner = checkNotNull(winner)
+                asyncFactory
                     .later {
                         competitors.forEach {
-                            it.publishResult(arena, winner)
+                            try {
+                                it.publishResult(arena, winner)
+                            } catch (e: Exception) {
+                                // TODO what to do here
+                            }
                         }
                         this@Bout
                     }
@@ -88,27 +103,24 @@ class Bout(private val asyncFactory: AsyncFactory,
 
         val random = Random(System.currentTimeMillis())
         val terrain = createFreshTerrain(parameters, random)
-        val effects = terrain.mapAll { _, aTerrain ->
-            if (aTerrain == Terrain.GREEN && random.nextDouble() < parameters.chanceForBurnable) Effect.burnable()
-            else if (aTerrain != Terrain.ROCK && random.nextDouble() < parameters.chanceForEnergy) Effect.energy(random.nextInt(
-                parameters.maxEnergy - 1) + 1)
-            else Effect.none()
-        }
-        val robots = competitors.fold<Competitor, MutableList<Robot>>(mutableListOf()) { list, competitor ->
-            val robot = Robot(competitor,
-                              createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
-                              parameters.startingEnergy,
-                              parameters.maxEnergy,
-                              parameters.startingHealth,
-                              parameters.startingShield,
-                              parameters.maxShield)
-            list.add(robot)
-            list
+        val effects = createEffects(terrain, random)
+        val robots = (0 until competitors.size)
+            .fold<Int, MutableList<Robot>>(mutableListOf()) { list, player ->
+                    val robot = Robot(player,
+                                      createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
+                                      parameters.startingEnergy,
+                                      parameters.maxEnergy,
+                                      parameters.startingHealth,
+                                      parameters.startingShield,
+                                      parameters.maxShield)
+                    list.add(robot)
+                    list
         }
 
-        arena = Arena(competitors.first(), robots, parameters.bounds, terrain, effects)
+        arena = Arena(0, robots, parameters.bounds, terrain, effects)
 
-        boutState = STARTED
+        state = BoutState.STARTED
+        subject.onNext(Pair(state, Detailed.none(arena)))
         return this
     }
 
@@ -130,26 +142,28 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     private fun nextMove(): Bout {
 
-        val move = arena.activeCompetitor.nextMove(arena)
+        val move = competitors[arena.activePlayer]
+            .nextMove(arena)
 
-        if (move == null) {
-            val (afterMove, messages) = arena.harakiri(arena.activeCompetitor)
-            arena = afterMove
-            messages.forEach{ println(it) }
-        } else {
-            val (afterMove, messages) = applyMove(move)(arena)
-            arena = afterMove
-            messages.forEach{ println(it) }
-        }
+        val detailedAfterMove =
+            if (move == null) {
+                // activePlayer's Robot dies because no response from competitor
+                arena.killRobot(arena.activePlayer)
+            } else {
+                applyMove(move)(arena)
+            }
 
-        arena = arena.advanceCompetitor()
+        arena = detailedAfterMove
+            .map { it.nextPlayer() }
+            .value
 
-        competitors.forEach { it.notify(this) }
+        arena.winner
+            ?.also {
+                state = BoutState.FINISHED
+            }
 
-        boutState = when {
-            arena.hasAWinner() -> FINISHED
-            else -> boutState
-        }
+        subject.onNext(Pair(state, detailedAfterMove))
+
         return this
     }
 
@@ -168,8 +182,8 @@ class Bout(private val asyncFactory: AsyncFactory,
         return uuid.hashCode()
     }
 
-    fun getActivecompetitorUuid(): String? {
-        return if(::arena.isInitialized) arena.activeCompetitor.uuid.toString() else null
+    fun getActivePlayer(): Int? {
+        return if(::arena.isInitialized) arena.activePlayer else null
     }
 
     companion object {
@@ -179,9 +193,20 @@ class Bout(private val asyncFactory: AsyncFactory,
                 val rnd = random.nextDouble()
                 when {
                     rnd < parameters.chanceForWater -> Terrain.WATER
-                    rnd < parameters.chanceForRock  -> Terrain.ROCK
-                    else                            -> Terrain.GREEN
+                    rnd < parameters.chanceForRock -> Terrain.ROCK
+                    else -> Terrain.GREEN
                 }
+            }
+        }
+
+        private fun createEffects(terrain: Grid<Terrain>, random: Random): Grid<Effect> {
+            return terrain.mapAll { _, aTerrain ->
+                if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
+                    Effect.burnable()
+                else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
+                    Effect.energy(random.nextInt(10) + 1)
+                else
+                    Effect.none()
             }
         }
     }

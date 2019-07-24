@@ -9,8 +9,6 @@ private constructor(val value: T,
 
     fun <U> map(f: (T) -> U): Detailed<U> = flatMap { none(f(value)) }
 
-    fun addDetail(detail: String): Detailed<T> = flatMap { single(it) { detail } }
-
     fun <U> flatMap(f: (T) -> Detailed<U>): Detailed<U> {
 
         val temp = f(value)
@@ -18,6 +16,8 @@ private constructor(val value: T,
         combinedDetails.addAll(temp.details)
         return Detailed(temp.value, combinedDetails)
     }
+
+    fun addDetail(detail: String): Detailed<T> = flatMap { single(it) { detail } }
 
     companion object {
 

@@ -19,10 +19,10 @@ interface CommChannel {
     /**
      * If move == null (timeout or any other problem) then the CommChannel should be closed
      */
-    fun nextMove(arena: Arena): Move?
+    fun nextMove(arena: Arena) : Move?
 
     /** null means draw */
-    fun publishResult(arena: Arena, winner: Competitor?)
+    fun publishResult(arena: Arena, winner : Competitor)
 
     fun publishErrorHappened(arena: Arena, throwable: Throwable)
 

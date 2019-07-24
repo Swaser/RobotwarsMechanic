@@ -1,6 +1,7 @@
 package com.noser.robotwars.mechanic
 
 import org.junit.Test
+import java.util.concurrent.Flow
 import kotlin.test.assertEquals
 
 class RxAsyncFactoryTest {
@@ -11,9 +12,9 @@ class RxAsyncFactoryTest {
     @Test
     fun testSupplyOne() {
 
-        val observable = RxAsyncFactory.later { 3 }
-        observable.subscribe({ println(it) })
-        observable.subscribe({ println(it) })
+        val observable = RxAsyncFactory.just(3)
+        observable.subscribe(AsyncFactory.noBackpressureSubscriber({ println(it) }))
+        observable.subscribe(AsyncFactory.noBackpressureSubscriber({ println(it) }))
 
         Thread.sleep(200L)
     }
@@ -23,7 +24,7 @@ class RxAsyncFactoryTest {
 
         a = -10
         val subject = RxAsyncFactory.subject<Int>()
-        subject.subscribe({ println(it) })
+        subject.subscribe(AsyncFactory.noBackpressureSubscriber({ println(it) }))
         conduct(1_000, subject)
 
         Thread.sleep(3_000)
@@ -31,18 +32,16 @@ class RxAsyncFactoryTest {
         assertEquals(0, a)
     }
 
-    private fun conduct(i: Int, o: AsyncListener<Int>) {
+    private fun conduct(i: Int, o: Flow.Subscriber<Int>) {
 
         if (i >= 0)
             RxAsyncFactory
                 .later { i }
-                .subscribe({
-                               a = it
-                               o.onNext(it)
-                               conduct(it - 1, o)
-                           },
-                           { println(it.message) })
-
+                .subscribe(AsyncFactory.noBackpressureSubscriber({
+                                                       a = it
+                                                       o.onNext(it)
+                                                       conduct(it - 1, o)
+                                                   }))
     }
 }
 

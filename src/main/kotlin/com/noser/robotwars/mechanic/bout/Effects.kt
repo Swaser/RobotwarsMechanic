@@ -16,7 +16,7 @@ class Effects(private val grid: Grid<Effect>) {
 
             is Effect.Energy -> {
                 single(robot.addEnergy(effect.amount)) { (updated, amount) ->
-                    "${updated.competitor} absorbed $amount energy to ${updated.energy}"
+                    "${updated.player} absorbed $amount energy to ${updated.energy}"
                 }.flatMap { (updated, _) ->
                     none(Pair(updated, Effects(grid.mapOne(robot.position) { Effect.none() })))
                 }
