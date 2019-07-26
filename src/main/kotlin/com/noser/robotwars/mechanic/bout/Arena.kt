@@ -10,7 +10,6 @@ data class Arena(val activePlayer: Int,
                  val terrain: Grid<Terrain>,
                  private val effects: Grid<Effect>) {
 
-
     val winner by lazy {
 
         var numNonZero = 0
@@ -21,11 +20,13 @@ data class Arena(val activePlayer: Int,
                 if (firstNonZero < 0) firstNonZero = index
             }
         }
-        if (numNonZero == 0) error("No robot with health > 0 found")
-        else if (numNonZero == 1) firstNonZero
-        else null
-    }
 
+        when (numNonZero) {
+            0 -> error("No robot with health > 0 found")
+            1 -> firstNonZero
+            else -> null
+        }
+    }
 
     fun nextPlayer(): Arena {
 

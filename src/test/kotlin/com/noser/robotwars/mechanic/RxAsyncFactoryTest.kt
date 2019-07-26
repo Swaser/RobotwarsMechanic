@@ -13,8 +13,8 @@ class RxAsyncFactoryTest {
     fun testSupplyOne() {
 
         val observable = RxAsyncFactory.just(3)
-        observable.subscribe(AsyncFactory.subscriber({ println(it) }))
-        observable.subscribe(AsyncFactory.subscriber({ println(it) }))
+        observable.subscribe(AsyncFactory.noBackpressureSubscriber({ println(it) }))
+        observable.subscribe(AsyncFactory.noBackpressureSubscriber({ println(it) }))
 
         Thread.sleep(200L)
     }
@@ -24,7 +24,7 @@ class RxAsyncFactoryTest {
 
         a = -10
         val subject = RxAsyncFactory.subject<Int>()
-        subject.subscribe(AsyncFactory.subscriber({ println(it) }))
+        subject.subscribe(AsyncFactory.noBackpressureSubscriber({ println(it) }))
         conduct(1_000, subject)
 
         Thread.sleep(3_000)
@@ -37,7 +37,7 @@ class RxAsyncFactoryTest {
         if (i >= 0)
             RxAsyncFactory
                 .later { i }
-                .subscribe(AsyncFactory.subscriber({
+                .subscribe(AsyncFactory.noBackpressureSubscriber({
                                                        a = it
                                                        o.onNext(it)
                                                        conduct(it - 1, o)
