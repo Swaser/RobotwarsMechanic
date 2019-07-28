@@ -38,12 +38,24 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
     /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts() {
-        val findStartableBouts = findStartableBouts()
-        if (findStartableBouts.isEmpty()) {
-            updateTournamentState(TournamentState.FINISHED)
-        } else {
-            findStartableBouts.forEach { startBout(it) }
-        }
+        asyncFactory.later {
+            val findStartableBouts = findStartableBouts()
+            if (findStartableBouts.isEmpty()) {
+                updateTournamentState(TournamentState.FINISHED)
+            } else {
+                findStartableBouts.forEach { startBout(it) }
+            }
+        }.subscribe(object : Flow.Subscriber<Unit> {
+            override fun onComplete() = Unit
+
+            override fun onSubscribe(subscription: Flow.Subscription) {
+                subscription.request(Long.MAX_VALUE)
+            }
+
+            override fun onNext(item: Unit?) = Unit
+
+            override fun onError(throwable: Throwable?) = Unit
+        })
     }
 
     private fun updateTournamentState(tournamentState: TournamentState) {
@@ -137,7 +149,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
         updateStatistics(bout)
 
-        if(runningBouts.isNotEmpty()) {
+        if(openBouts.union(runningBouts).isNotEmpty()) {
             startNextRoundOfBouts()
             subject.onNext(bout)
         } else {
