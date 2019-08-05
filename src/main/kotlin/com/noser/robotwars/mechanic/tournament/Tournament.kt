@@ -11,8 +11,10 @@ import java.util.*
 import java.util.concurrent.Flow
 
 class Tournament(private val asyncFactory: AsyncFactory,
-                 val tournamentName: String,
-                 private val boutGenerator: (Set<Competitor>) -> Set<Bout>) {
+                 val name: String,
+                 val parameters: TournamentParameters,
+                 private val listener: TournamentChangeListener,
+                 private val boutGenerator: (Set<Competitor>) -> Set<List<Competitor>>) {
 
     val uuid: UUID = UUID.randomUUID()
 
@@ -60,7 +62,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
     private fun updateTournamentState(tournamentState: TournamentState) {
         state = tournamentState
-        notifyTournamentUpdated(competitors.toList(), this)
+        notifyTournamentUpdated(this)
     }
 
     fun start(): Flow.Processor<Bout, Bout> {
@@ -68,13 +70,17 @@ class Tournament(private val asyncFactory: AsyncFactory,
         check(competitors.size >= 2)
 
         notPlaying.addAll(competitors)
-        openBouts.addAll(boutGenerator(competitors))
+        openBouts.addAll(generateBouts(competitors))
 
         updateTournamentState(STARTED)
 
         startNextRoundOfBouts()
 
         return observe()
+    }
+
+    private fun generateBouts(competitors: MutableSet<Competitor>): Collection<Bout> {
+        return boutGenerator(competitors).map { Bout(asyncFactory, it, parameters) }
     }
 
     fun isOpen(): Boolean {
@@ -88,6 +94,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
     fun addCompetitor(competitor: Competitor) {
         check(state == OPEN)
         competitors.add(competitor)
+        notifyTournamentUpdated(this)
     }
 
     @Synchronized
@@ -134,7 +141,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
         runningBouts.add(bout)
         openBouts.remove(bout)
 
-        notifyBoutUpdated(bout.competitors, bout)
+        notifyBoutUpdated(bout)
     }
 
     @Synchronized
@@ -145,7 +152,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
         runningBouts.remove(bout)
         completedBouts.add(bout)
 
-        notifyBoutUpdated(bout.competitors, bout)
+        notifyBoutUpdated(bout)
 
         updateStatistics(bout)
 
@@ -157,18 +164,12 @@ class Tournament(private val asyncFactory: AsyncFactory,
         }
     }
 
-    private fun notifyBoutUpdated(competitors: List<Competitor>,
-                                  bout: Bout) {
-        competitors.forEach { it.notify(bout) }
-
-        //TODO also notify spectators spectators[boutUuid]?.forEach { it.notify(bout) }
+    private fun notifyBoutUpdated(bout: Bout) {
+        listener.notifyBoutChanged(bout)
     }
 
-    private fun notifyTournamentUpdated(competitors: List<Competitor>,
-                                        tournament: Tournament) {
-        competitors.forEach { it.notify(tournament) }
-
-        //TODO also notify spectators spectators[tournamentUuid]?.forEach { it.notify(tournament) }
+    private fun notifyTournamentUpdated(tournament: Tournament) {
+        listener.notifyTournamentChanged(tournament)
     }
 
     private fun updateStatistics(bout: Bout) {
