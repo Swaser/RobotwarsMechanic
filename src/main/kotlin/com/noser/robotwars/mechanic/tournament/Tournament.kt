@@ -47,17 +47,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
             } else {
                 findStartableBouts.forEach { startBout(it) }
             }
-        }.subscribe(object : Flow.Subscriber<Unit> {
-            override fun onComplete() = Unit
-
-            override fun onSubscribe(subscription: Flow.Subscription) {
-                subscription.request(Long.MAX_VALUE)
-            }
-
-            override fun onNext(item: Unit?) = Unit
-
-            override fun onError(throwable: Throwable?) = Unit
-        })
+        }.subscribe(AsyncFactory.noBackpressureSubscriber({},{},{},{}))
     }
 
     private fun updateTournamentState(tournamentState: TournamentState) {
@@ -118,19 +108,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
         registerBoutStarted(bout)
 
-        bout.conductBout()
-            .subscribe(object : Flow.Subscriber<Pair<BoutState, Detailed<Arena>>> {
-                override fun onComplete() {
-                    registerBoutEnded(bout)
-                }
-
-                override fun onSubscribe(subscription: Flow.Subscription) {
-                    subscription.request(Long.MAX_VALUE)
-                }
-
-                override fun onNext(item: Pair<BoutState, Detailed<Arena>>) = Unit
-                override fun onError(throwable: Throwable?) = Unit // TODO
-            })
+        bout.conductBout().subscribe(AsyncFactory.noBackpressureSubscriber({}, {registerBoutEnded(bout)}, {}, {}))
     }
 
     @Synchronized
