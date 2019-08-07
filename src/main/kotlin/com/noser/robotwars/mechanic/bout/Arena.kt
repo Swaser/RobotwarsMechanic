@@ -141,9 +141,12 @@ data class Arena(val activePlayer: Int,
 
     fun applyEffects(player: Int): Detailed<Arena> {
         val robot = findRobot(player)
-        return when (effects[robot.position]) {
+        return when (val effect = effects[robot.position]) {
             is Effect.Fire -> single(this) { "$player is in fire" }.flatMap {
-                robot.takeDamage(1).map { withRobots(it) }
+                robot.takeDamage(effect.amount).map { withRobots(it) }
+            }
+            is Effect.Energy -> single(this) { "$player found energy" }.flatMap {
+                robot.addEnergy(effect.amount).map { withRobots(it) }
             }
             else -> none(this)
         }
