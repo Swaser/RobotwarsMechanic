@@ -103,16 +103,16 @@ class Bout(private val asyncFactory: AsyncFactory,
 
         val random = Random(System.currentTimeMillis())
         val terrain = createFreshTerrain(parameters, random)
-        val effects = createEffects(terrain, random)
+        val effects = createEffects(parameters, terrain, random)
         val robots = (0 until competitors.size)
             .fold<Int, MutableList<Robot>>(mutableListOf()) { list, player ->
                     val robot = Robot(player,
                                       createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
-                                      parameters.startingEnergy,
-                                      parameters.maxEnergy,
-                                      parameters.startingHealth,
-                                      parameters.startingShield,
-                                      parameters.maxShield)
+                                      parameters.robotEnergyInitial,
+                                      parameters.robotEnergyMax,
+                                      parameters.robotHealthInitial,
+                                      parameters.robotShieldInitial,
+                                      parameters.robotShieldMax)
                     list.add(robot)
                     list
         }
@@ -192,19 +192,19 @@ class Bout(private val asyncFactory: AsyncFactory,
             return Grid(parameters.bounds) {
                 val rnd = random.nextDouble()
                 when {
-                    rnd < parameters.chanceForWater -> Terrain.WATER
-                    rnd < parameters.chanceForRock -> Terrain.ROCK
+                    rnd < parameters.terrainWaterChance -> Terrain.WATER
+                    rnd < parameters.terrainRockChance -> Terrain.ROCK
                     else -> Terrain.GREEN
                 }
             }
         }
 
-        private fun createEffects(terrain: Grid<Terrain>, random: Random): Grid<Effect> {
+        private fun createEffects(parameters: TournamentParameters, terrain: Grid<Terrain>, random: Random): Grid<Effect> {
             return terrain.mapAll { _, aTerrain ->
-                if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
+                if (aTerrain == Terrain.GREEN && random.nextDouble() < parameters.effectBurnableChance)
                     Effect.burnable()
-                else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
-                    Effect.energy(random.nextInt(10) + 1)
+                else if (aTerrain != Terrain.ROCK && random.nextDouble() < parameters.effectEnergyChance)
+                    Effect.energy(random.nextInt(parameters.effectEnergyMax) + 1)
                 else
                     Effect.none()
             }
