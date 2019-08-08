@@ -142,6 +142,8 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     private fun nextMove(): Bout {
 
+        arena = earnEnergy(arena)
+
         val move = competitors[arena.activePlayer]
             .nextMove(arena)
 
@@ -165,6 +167,17 @@ class Bout(private val asyncFactory: AsyncFactory,
         subject.onNext(Pair(state, detailedAfterMove))
 
         return this
+    }
+
+    private fun earnEnergy(arena: Arena): Arena {
+        val reloadedRobot = arena.robots[arena.activePlayer].addEnergy(tournamentParameters.energyRefillPerRound).value
+        return arena.copy(robots = arena.robots.map { existing ->
+            if(arena.robots.find { reloadedRobot.player == existing.player } != null) {
+                reloadedRobot
+            } else {
+                existing
+            }
+        })
     }
 
     override fun equals(other: Any?): Boolean {
