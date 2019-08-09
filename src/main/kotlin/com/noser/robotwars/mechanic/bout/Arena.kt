@@ -145,9 +145,18 @@ data class Arena(val activePlayer: Int,
             is Effect.Fire -> single(this) { "$player is in fire" }.flatMap {
                 robot.takeDamage(effect.amount).map { withRobots(it) }
             }
-            is Effect.Energy -> single(this) { "$player found energy" }.flatMap {
-                robot.addEnergy(effect.amount).map { withRobots(it) }
-            }
+            is Effect.Energy -> single(this) { "$player found energy" }
+                .flatMap {
+                    val (actual, detailedRobot) = robot.addEnergy(effect.amount)
+                    detailedRobot
+                        .map { withRobots(it) }
+                        .map {
+                            it.withEffects(it.effects.mapOne(robot.position) {
+                                val remaining = effect.amount - actual
+                                if (remaining > 0) Effect.energy(remaining) else Effect.none()
+                            })
+                        }
+                }
             else -> none(this)
         }
     }
@@ -160,6 +169,9 @@ data class Arena(val activePlayer: Int,
     }
 
     fun findRobot(player: Int) = robots.find { it.player == player } ?: error("Robot $player not found")
+
+    fun addEnergyTo(player: Int, amount: Int) : Detailed<Arena> =
+        findRobot(player).addEnergy(amount).second.map { withRobots(it) }
 
     private fun withRobots(vararg replacements: Robot): Arena =
         copy(robots = robots.map { existing -> replacements.find { it.player == existing.player } ?: existing })

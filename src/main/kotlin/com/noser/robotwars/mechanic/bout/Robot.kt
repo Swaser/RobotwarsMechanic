@@ -52,12 +52,12 @@ class Robot(val player: Int,
         }
     }
 
-    fun addEnergy(amount: Int): Detailed<Robot> {
+    fun addEnergy(amount: Int): Pair<Int, Detailed<Robot>> {
         check(amount >= 0) { "energy cannot be negative" }
         val actual = min(maxEnergy - energy, amount)
-        return single(update(energy + actual)) {
+        return Pair(actual, single(update(energy + actual)) {
             "$player receives $actual ($amount) energy (E=${it.energy},S=${it.shield},H=${it.health})"
-        }
+        })
     }
 
     fun ram(dir: Direction): Detailed<Robot> {

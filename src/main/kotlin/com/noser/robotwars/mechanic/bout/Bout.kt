@@ -14,7 +14,7 @@ import kotlin.random.Random
  */
 class Bout(private val asyncFactory: AsyncFactory,
            val competitors: List<Competitor>,
-           val tournamentParameters: TournamentParameters) {
+           val parameters: TournamentParameters) {
 
     init {
         check(competitors.size >= 2) { "Bout must have at least 2 competitors" }
@@ -73,7 +73,7 @@ class Bout(private val asyncFactory: AsyncFactory,
         when (state) {
 
             BoutState.REGISTERED -> asyncFactory
-                .later { start(tournamentParameters) }
+                .later { start(parameters) }
                 .subscribe(stillRunningObserver)
 
             BoutState.STARTED -> asyncFactory
@@ -142,22 +142,15 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     private fun nextMove(): Bout {
 
-        arena = earnEnergy(arena)
-
-        val move = competitors[arena.activePlayer]
-            .nextMove(arena)
-
-        val detailedAfterMove =
-            if (move == null) {
-                // activePlayer's Robot dies because no response from competitor
-                arena.killRobot(arena.activePlayer)
-            } else {
-                applyMove(move)(arena)
+        val detailedAfterMove = arena
+            .addEnergyTo(arena.activePlayer, parameters.energyRefill)
+            .flatMap { anArena ->
+                getMove(anArena)
+                    ?.let { aMove -> applyMove(aMove)(anArena) } ?: anArena.killRobot(anArena.activePlayer)
             }
-
-        arena = detailedAfterMove
             .map { it.nextPlayer() }
-            .value
+
+        arena = detailedAfterMove.value
 
         arena.winner
             ?.also {
@@ -169,15 +162,10 @@ class Bout(private val asyncFactory: AsyncFactory,
         return this
     }
 
-    private fun earnEnergy(arena: Arena): Arena {
-        val reloadedRobot = arena.robots[arena.activePlayer].addEnergy(tournamentParameters.energyRefillPerRound).value
-        return arena.copy(robots = arena.robots.map { existing ->
-            if(arena.robots.find { reloadedRobot.player == existing.player } != null) {
-                reloadedRobot
-            } else {
-                existing
-            }
-        })
+    private fun getMove(it: Arena): Move? {
+        return competitors[it.activePlayer]
+            .commChannel
+            .nextMove(it)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -193,10 +181,6 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     override fun hashCode(): Int {
         return uuid.hashCode()
-    }
-
-    fun getActivePlayer(): Int? {
-        return if(::arena.isInitialized) arena.activePlayer else null
     }
 
     companion object {
