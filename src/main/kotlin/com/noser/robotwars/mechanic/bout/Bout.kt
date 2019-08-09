@@ -139,21 +139,15 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     private fun nextMove(): Bout {
 
-        val move = competitors[arena.activePlayer]
-            .commChannel
-            .nextMove(arena)
-
-        val detailedAfterMove =
-            if (move == null) {
-                // activePlayer's Robot dies because no response from competitor
-                arena.killRobot(arena.activePlayer)
-            } else {
-                applyMove(move)(arena)
+        val detailedAfterMove = arena
+            .addEnergyTo(arena.activePlayer, tournament.parameters.energyRefill)
+            .flatMap { anArena ->
+                getMove(anArena)
+                    ?.let { aMove -> applyMove(aMove)(anArena) } ?: anArena.killRobot(anArena.activePlayer)
             }
-
-        arena = detailedAfterMove
             .map { it.nextPlayer() }
-            .value
+
+        arena = detailedAfterMove.value
 
         arena.winner
             ?.also {
@@ -163,6 +157,12 @@ class Bout(private val asyncFactory: AsyncFactory,
         subject.onNext(Pair(state, detailedAfterMove))
 
         return this
+    }
+
+    private fun getMove(it: Arena): Move? {
+        return competitors[it.activePlayer]
+            .commChannel
+            .nextMove(it)
     }
 
     override fun equals(other: Any?): Boolean {
