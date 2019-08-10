@@ -10,11 +10,7 @@ import java.util.*
  */
 data class Competitor(val uuid: UUID,
                       val name: String,
-                      val commChannel: CommChannel) {
-
-    fun harakiri() {
-        commChannel.disconnect()
-    }
+                      private val commChannel: CommChannel) {
 
     fun notify(bout: Bout) {
         commChannel.notifyBout(bout)

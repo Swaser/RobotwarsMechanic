@@ -165,7 +165,9 @@ data class Arena(val activePlayer: Int,
 
     fun killRobot(player: Int): Detailed<Arena> {
         // TODO something else than takeDamage
-        return findRobot(player).takeDamage(Int.MAX_VALUE).map { withRobots(it) }
+        return single(findRobot(player)) { "killing player $player" }
+            .flatMap { it.takeDamage(Int.MAX_VALUE) }
+            .map { withRobots(it) }
     }
 
     fun findRobot(player: Int) = robots.find { it.player == player } ?: error("Robot $player not found")

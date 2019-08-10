@@ -2,6 +2,7 @@ package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.Detailed
+import com.noser.robotwars.mechanic.Detailed.Companion.single
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
@@ -35,6 +36,8 @@ class Bout(private val asyncFactory: AsyncFactory,
     lateinit var arena: Arena
         private set
 
+    val deathnote: MutableList<Int> = mutableListOf()
+
     fun getArenaOrNull(): Arena? {
         return if (::arena.isInitialized) arena else null
     }
@@ -52,7 +55,11 @@ class Bout(private val asyncFactory: AsyncFactory,
         override fun onComplete() {}
         override fun onError(throwable: Throwable) = subject.onError(throwable)
         override fun onNext(bout: Bout) {
-            conductBoutRecursive()
+            if(deathnote.isNotEmpty()) {
+                executeDeathnote()
+            } else {
+                conductBoutRecursive()
+            }
         }
     }
 
@@ -97,6 +104,19 @@ class Bout(private val asyncFactory: AsyncFactory,
                     .subscribe(resolvedObserver)
             }
         }
+    }
+
+    fun executeDeathnote() {
+        asyncFactory
+            .later {
+                deathnote.forEach { player ->
+                    val detailedAfterDeathnote =
+                        single(arena) {"Tick off player $it from deathnote"}
+                        .flatMap { arena.killRobot(player) }
+                    subject.onNext(Pair(state, detailedAfterDeathnote))
+                }
+                this
+            }.subscribe(stillRunningObserver)
     }
 
     private fun start(parameters: TournamentParameters): Bout {
@@ -164,7 +184,6 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     private fun getMove(it: Arena): Move? {
         return competitors[it.activePlayer]
-            .commChannel
             .nextMove(it)
     }
 
@@ -181,6 +200,12 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     override fun hashCode(): Int {
         return uuid.hashCode()
+    }
+
+    fun harakiri(uuid: String) {
+        val competitor = competitors.first { it.uuid.toString() == uuid }
+        val player = competitors.indexOf(competitor)
+        deathnote.add(player)
     }
 
     companion object {
