@@ -22,5 +22,4 @@ data class BoutResult(val boutId: UUID,
     }
 }
 
-data class TournamentStatistics(private val boutResults: Set<BoutResult>) {
-}
+data class TournamentStatistics(private val boutResults: Set<BoutResult>) 
