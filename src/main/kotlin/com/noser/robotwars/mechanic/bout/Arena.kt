@@ -97,18 +97,18 @@ data class Arena(val activePlayer: Int,
                     when {
                         nextPos == null -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into the wall").flatMap {
-                                targetRobot.takeDamage(1).map { rammed -> it.withRobots(rammed) }
+                                it.findRobot(targetRobot.player).takeDamage(1).map { rammed -> it.withRobots(rammed) }
                             }
 
                         nextTerrain == Terrain.ROCK -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into a rock").flatMap {
-                                targetRobot.takeDamage(1).map { rammed -> it.withRobots(rammed) }
+                                it.findRobot(targetRobot.player).takeDamage(1).map { rammed -> it.withRobots(rammed) }
                             }
 
                         nextRobot != null -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into ${nextRobot.player}").flatMap {
-                                targetRobot.takeDamage(1).flatMap { rammed ->
-                                    nextRobot.takeDamage(1).map { secondRammed -> it.withRobots(rammed, secondRammed) }
+                                it.findRobot(targetRobot.player).takeDamage(1).flatMap { rammed ->
+                                    it.findRobot(nextRobot.player).takeDamage(1).map { secondRammed -> it.withRobots(rammed, secondRammed) }
                                 }
                             }
 
