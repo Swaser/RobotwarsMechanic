@@ -21,7 +21,7 @@ open class Competitor(open val uuid: UUID,
         commChannel.notifyTournament(tournament)
     }
 
-    fun nextMove(request: MoveRequest): Move? {
+    fun nextMove(request: MoveRequest) {
         return commChannel.nextMove(request)
     }
 
