@@ -165,8 +165,15 @@ class Bout(private val asyncFactory: AsyncFactory,
         val detailedAfterMove = arena
             .addEnergyTo(arena.activePlayer, parameters.energyRefill)
             .flatMap { anArena ->
-                getMove(anArena)
-                    ?.let { aMove -> applyMove(aMove)(anArena) } ?: anArena.killRobot(anArena.activePlayer)
+                val currentMoveRequestId = UUID.randomUUID()
+                val aMove = getMove(createMoveRequest(currentMoveRequestId, anArena))
+                when {
+                    aMove == null -> anArena.killRobot(anArena.activePlayer)
+                    aMove.requestId != currentMoveRequestId.toString() -> {
+                        single(anArena){"Received answer for invalid move request"}
+                    }
+                    else -> applyMove(aMove)(anArena)
+                }
             }
             .map { it.nextPlayer() }
 
@@ -182,9 +189,15 @@ class Bout(private val asyncFactory: AsyncFactory,
         return this
     }
 
-    private fun getMove(it: Arena): Move? {
-        return competitors[it.activePlayer]
-            .nextMove(it)
+    private fun createMoveRequest(currentMoveRequestId: UUID, anArena: Arena): MoveRequest {
+        return MoveRequest(currentMoveRequestId.toString(),
+                           anArena,
+                           competitors.map { competitors.indexOf(it) to it }.toMap())
+    }
+
+    private fun getMove(request: MoveRequest): Move? {
+        return competitors[request.arena.activePlayer]
+            .nextMove(request)
     }
 
     override fun equals(other: Any?): Boolean {

@@ -3,13 +3,14 @@ package com.noser.robotwars.mechanic.tournament
 import com.noser.robotwars.mechanic.bout.Arena
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.Move
+import com.noser.robotwars.mechanic.bout.MoveRequest
 import java.util.*
 
 /**
  * Represents an active agent in a Tournament. Could be an AI or a human.
  */
-data class Competitor(val uuid: UUID,
-                      val name: String,
+open class Competitor(open val uuid: UUID,
+                      open val name: String,
                       private val commChannel: CommChannel) {
 
     fun notify(bout: Bout) {
@@ -20,8 +21,8 @@ data class Competitor(val uuid: UUID,
         commChannel.notifyTournament(tournament)
     }
 
-    fun nextMove(arena: Arena): Move? {
-        return commChannel.nextMove(arena)
+    fun nextMove(request: MoveRequest): Move? {
+        return commChannel.nextMove(request)
     }
 
     fun publishResult(arena: Arena,

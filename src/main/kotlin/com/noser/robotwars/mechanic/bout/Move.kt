@@ -6,7 +6,8 @@ import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
 import com.noser.robotwars.mechanic.Extensions.before
 
-data class Move(val player: Int,
+data class Move(val requestId: String,
+                val player: Int,
                 val directions: List<Direction>,
                 val loadShield: Int,
                 val shootDirection: Direction?,
