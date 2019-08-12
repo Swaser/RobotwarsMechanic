@@ -1,25 +1,26 @@
 package com.noser.robotwars.mechanic.tournament
 
-import java.util.*
+import com.noser.robotwars.mechanic.bout.Bout
 
-data class BoutResult(val boutId: UUID,
-                      val competitors: Map<Competitor, Int>,
-                      val winner: Int) {
+class TournamentStatistics {
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+    private val stats: MutableMap<String, CompetitorStatistics> = mutableMapOf()
 
-        other as BoutResult
-
-        if (boutId != other.boutId) return false
-
-        return true
+    fun addNewResult(bout: Bout) {
+        bout.competitors.forEachIndexed { index, competitor ->
+            val uuid = competitor.uuid.toString()
+            stats.putIfAbsent(uuid, CompetitorStatistics(uuid, competitor.name, 0))
+            stats.computeIfPresent(uuid) { compUuid, compStats ->
+                if (compUuid == bout.winner?.uuid?.toString()) {
+                    compStats.inc()
+                } else {
+                    compStats
+                }
+            }
+        }
     }
 
-    override fun hashCode(): Int {
-        return boutId.hashCode()
+    fun getAggregatedStats(): List<CompetitorStatistics> {
+        return stats.values.toList()
     }
 }
-
-data class TournamentStatistics(private val boutResults: Set<BoutResult>) 

@@ -1,13 +1,12 @@
 package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
-import com.noser.robotwars.mechanic.Detailed
-import com.noser.robotwars.mechanic.bout.Arena
 import com.noser.robotwars.mechanic.bout.Bout
 import com.noser.robotwars.mechanic.bout.BoutState
+import com.noser.robotwars.mechanic.tournament.TournamentState.FINISHED
 import com.noser.robotwars.mechanic.tournament.TournamentState.OPEN
 import com.noser.robotwars.mechanic.tournament.TournamentState.STARTED
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.Flow
 
 class Tournament(private val asyncFactory: AsyncFactory,
@@ -22,7 +21,9 @@ class Tournament(private val asyncFactory: AsyncFactory,
     var state: TournamentState = OPEN
         private set
 
-    val competitors = mutableSetOf<Competitor>()
+    private val statistics: TournamentStatistics = TournamentStatistics()
+
+    private val competitors = mutableSetOf<Competitor>()
 
     private val openBouts = mutableSetOf<Bout>()
 
@@ -36,14 +37,14 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
     private fun observe(): Flow.Processor<Bout, Bout> = subject
 
-    fun getStatistics(): TournamentStatistics = TODO()
+    fun getStatistics(): TournamentStatistics = statistics
 
     /** call this fun repeatedly until tournament done */
     fun startNextRoundOfBouts() {
         asyncFactory.later {
             val findStartableBouts = findStartableBouts()
             if (findStartableBouts.isEmpty()) {
-                updateTournamentState(TournamentState.FINISHED)
+                updateTournamentState(FINISHED)
             } else {
                 findStartableBouts.forEach { startBout(it) }
             }
@@ -79,6 +80,10 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
     fun isStarted(): Boolean {
         return state == STARTED
+    }
+
+    fun hasCompleted(): Boolean {
+        return state == FINISHED
     }
 
     fun addCompetitor(competitor: Competitor) {
@@ -130,9 +135,9 @@ class Tournament(private val asyncFactory: AsyncFactory,
         runningBouts.remove(bout)
         completedBouts.add(bout)
 
-        notifyBoutUpdated(bout)
-
         updateStatistics(bout)
+
+        notifyBoutUpdated(bout)
 
         if(openBouts.union(runningBouts).isNotEmpty()) {
             startNextRoundOfBouts()
@@ -151,10 +156,8 @@ class Tournament(private val asyncFactory: AsyncFactory,
     }
 
     private fun updateStatistics(bout: Bout) {
-
         check(bout.arena.winner != null)
-
-        // TODO update statistics so it can easily be displayed
+        statistics.addNewResult(bout)
     }
 
     @Synchronized
@@ -177,7 +180,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
         return openBouts.union(runningBouts).union(completedBouts).toList()
     }
 
-    fun hasCompleted(): Boolean {
-        return openBouts.isEmpty()
+    fun getCompetitors(): List<Competitor> {
+        return competitors.toList()
     }
 }
