@@ -9,7 +9,6 @@ import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
 import io.reactivex.Observer
 import io.reactivex.disposables.Disposable
-import io.reactivex.observers.DefaultObserver
 import io.reactivex.subjects.PublishSubject
 import java.util.UUID
 import java.util.concurrent.Flow
@@ -155,7 +154,7 @@ class Bout(private val asyncFactory: AsyncFactory,
         arena = Arena(0, robots, parameters.bounds, terrain, effects)
 
         state = BoutState.STARTED
-        subject.onNext(Pair(state, Detailed.none(arena)))
+        subject.onNext(Pair(state, none(arena)))
         return this
     }
 
