@@ -7,7 +7,7 @@ class TournamentStatistics {
     private val stats: MutableMap<String, CompetitorStatistics> = mutableMapOf()
 
     fun addNewResult(bout: Bout) {
-        bout.competitors.forEachIndexed { index, competitor ->
+        bout.competitors.forEach { competitor ->
             val uuid = competitor.uuid.toString()
             stats.putIfAbsent(uuid, CompetitorStatistics(uuid, competitor.name, 0))
             stats.computeIfPresent(uuid) { compUuid, compStats ->

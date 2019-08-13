@@ -239,10 +239,12 @@ class Bout(private val asyncFactory: AsyncFactory,
         return uuid.hashCode()
     }
 
-    fun harakiri(uuid: String) {
-        val competitor = competitors.first { it.uuid.toString() == uuid }
-        val player = competitors.indexOf(competitor)
-        deathnote.add(player)
+    fun kill(uuid: String) {
+        val competitor = competitors.firstOrNull { it.uuid.toString() == uuid }
+        if(competitor != null) {
+            deathnote.add(competitors.indexOf(competitor))
+            competitor.kill()
+        }
     }
 
     companion object {

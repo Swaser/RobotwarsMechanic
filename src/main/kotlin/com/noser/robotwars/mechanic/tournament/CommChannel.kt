@@ -6,15 +6,9 @@ import com.noser.robotwars.mechanic.bout.MoveRequest
 
 interface CommChannel {
 
-    /**
-     * notify competitor of a change in a bout
-     */
-    fun notifyBout(bout: Bout)
+    fun notify(bout: Bout)
 
-    /**
-     * notify competitor of a change in a tournament
-     */
-    fun notifyTournament(tournament: Tournament)
+    fun notify(tournament: Tournament)
 
     fun nextMove(request: MoveRequest)
 

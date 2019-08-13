@@ -2,32 +2,47 @@ package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.bout.Arena
 import com.noser.robotwars.mechanic.bout.Bout
-import com.noser.robotwars.mechanic.bout.Move
 import com.noser.robotwars.mechanic.bout.MoveRequest
-import java.util.*
+import java.util.UUID
 
 /**
  * Represents an active agent in a Tournament. Could be an AI or a human.
  */
-open class Competitor(open val uuid: UUID,
-                      open val name: String,
-                      private val commChannel: CommChannel) {
+class Competitor(val uuid: UUID,
+                 val name: String,
+                 private val commChannel: CommChannel) {
+
+    @Volatile
+    private var killed: Boolean = false
 
     fun notify(bout: Bout) {
-        commChannel.notifyBout(bout)
+        if(!killed) {
+            commChannel.notify(bout)
+        }
     }
 
     fun notify(tournament: Tournament) {
-        commChannel.notifyTournament(tournament)
+        if(!killed) {
+            commChannel.notify(tournament)
+        }
     }
 
-    fun nextMove(request: MoveRequest) {
-        return commChannel.nextMove(request)
+    fun nextMove(request: MoveRequest): Boolean {
+        if(!killed) {
+            commChannel.nextMove(request)
+        }
+        return !killed
     }
 
     fun publishResult(arena: Arena,
                       winner: Competitor) {
-        commChannel.publishResult(arena, winner)
+        if(!killed) {
+            commChannel.publishResult(arena, winner)
+        }
+    }
+
+    fun kill() {
+        killed = true
     }
 
     override fun equals(other: Any?): Boolean {

@@ -2,11 +2,10 @@ package com.noser.robotwars.mechanic.tournament
 
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.bout.Bout
-import com.noser.robotwars.mechanic.bout.BoutState
 import com.noser.robotwars.mechanic.tournament.TournamentState.FINISHED
 import com.noser.robotwars.mechanic.tournament.TournamentState.OPEN
 import com.noser.robotwars.mechanic.tournament.TournamentState.STARTED
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.Flow
 
 class Tournament(private val asyncFactory: AsyncFactory,
