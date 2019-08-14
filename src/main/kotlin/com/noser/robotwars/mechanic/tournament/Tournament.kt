@@ -42,9 +42,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
     fun startNextRoundOfBouts() {
         asyncFactory.later {
             val findStartableBouts = findStartableBouts()
-            if (findStartableBouts.isEmpty()) {
-                updateTournamentState(FINISHED)
-            } else {
+            if (findStartableBouts.isNotEmpty()) {
                 findStartableBouts.forEach { startBout(it) }
             }
         }.subscribe(AsyncFactory.noBackpressureSubscriber({},{},{},{}))
@@ -142,6 +140,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
             startNextRoundOfBouts()
             subject.onNext(bout)
         } else {
+            updateTournamentState(FINISHED)
             subject.onComplete()
         }
     }
