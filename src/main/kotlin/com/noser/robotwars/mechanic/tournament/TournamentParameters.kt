@@ -13,4 +13,5 @@ data class TournamentParameters(val bounds: Bounds,
                                 val robotEnergyInitial: Int,
                                 val robotEnergyMax: Int,
                                 val robotShieldInitial: Int,
-                                val robotShieldMax: Int)
+                                val robotShieldMax: Int,
+                                var randomSeed: Long?)

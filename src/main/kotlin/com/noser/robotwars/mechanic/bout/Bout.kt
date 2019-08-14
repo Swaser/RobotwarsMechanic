@@ -10,6 +10,8 @@ import com.noser.robotwars.mechanic.tournament.TournamentParameters
 import io.reactivex.Observer
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.PublishSubject
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.Flow
 import kotlin.random.Random
@@ -20,6 +22,8 @@ import kotlin.random.Random
 class Bout(private val asyncFactory: AsyncFactory,
            val competitors: List<Competitor>,
            val parameters: TournamentParameters) {
+
+    private val logger: Logger = LoggerFactory.getLogger("Bout")
 
     init {
         check(competitors.size >= 2) { "Bout must have at least 2 competitors" }
@@ -134,8 +138,8 @@ class Bout(private val asyncFactory: AsyncFactory,
     }
 
     private fun start(parameters: TournamentParameters): Bout {
-
-        val random = Random(System.currentTimeMillis())
+        val random = Random(getSeed(parameters))
+        parameters.randomSeed = random.nextLong()
         val terrain = createFreshTerrain(parameters, random)
         val effects = createEffects(parameters, terrain, random)
         val robots = (0 until competitors.size)
@@ -156,6 +160,12 @@ class Bout(private val asyncFactory: AsyncFactory,
         state = BoutState.STARTED
         subject.onNext(Pair(state, none(arena)))
         return this
+    }
+
+    private fun getSeed(parameters: TournamentParameters): Long {
+        val seed = parameters.randomSeed ?: System.currentTimeMillis()
+        logger.debug("Just for the record, using seed $seed")
+        return seed
     }
 
     private fun createUniquePosition(bounds: Bounds,
