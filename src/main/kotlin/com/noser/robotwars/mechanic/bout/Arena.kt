@@ -81,8 +81,8 @@ data class Arena(val activePlayer: Int,
 
     fun resolveRamming(player: Int, dir: Direction): Detailed<Arena> {
 
-        val robot = findRobot(player)
-        return robot.ram(dir).map { withRobots(it) }.flatMap { arena ->
+        return findRobot(player).ram(dir).map { withRobots(it) }.flatMap { arena ->
+            val robot = arena.findRobot(player)
             val targetPos = robot.position.move(dir, bounds)
             val targetRobot = targetPos?.let { arena.findRobot(it) }
             when {
@@ -97,12 +97,12 @@ data class Arena(val activePlayer: Int,
                         nextPos == null                  -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into the wall")
                             .flatMap { it.takeDamage(1) }
-                            .map { withRobots(it) }
+                            .map { withRobots(it, robot) }
 
                         terrain[nextPos] == Terrain.ROCK -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into a rock")
                             .flatMap { it.takeDamage(1) }
-                            .map { withRobots(it) }
+                            .map { withRobots(it, robot) }
 
                         nextRobot != null                -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into ${nextRobot.player}")
@@ -115,10 +115,11 @@ data class Arena(val activePlayer: Int,
                                             .map { other -> arrayOf(afterRamIntoOther, other) }
                                     }
                             }
-                            .map { withRobots(*it) }
+                            .map { withRobots(*it, robot) }
 
                         else                             -> firstRamDamageDone
                             .flatMap { moveTo(targetRobot.player, nextPos, 0) }
+                            .map{ withRobots(robot) }
                     }
                 }
             }
