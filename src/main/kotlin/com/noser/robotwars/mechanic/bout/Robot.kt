@@ -82,4 +82,9 @@ class Robot(val player: Int,
             "$player fires cannon $dir for $actual ($amount) (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
+
+    override fun toString(): String {
+        return "Robot(player=$player, position=$position, energy=$energy, maxEnergy=$maxEnergy, health=$health, shield=$shield, maxShield=$maxShield)"
+    }
+
 }

@@ -24,10 +24,12 @@ class MoveTest {
                               if (pos == Position(2, 1)) Effect.burnable() else Effect.none()
                           })
 
-        val move = Move(0,
+        val move = Move("",
+                        0,
                         listOf(Direction.N, Direction.N, Direction.E, Direction.S, Direction.W),
                         4,
-                        Direction.S, 2,
+                        Direction.S,
+                        2,
                         Direction.S)
 
         val (updated, messages) = Moves.applyMove(move)(arena)
