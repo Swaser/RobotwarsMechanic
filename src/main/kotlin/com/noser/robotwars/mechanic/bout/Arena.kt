@@ -13,11 +13,11 @@ data class Arena(val activePlayer: Int,
     val winner by lazy {
 
         var numNonZero = 0
-        var firstNonZero: Int? = null
-        robots.forEach { robot ->
+        var firstNonZero = -1
+        robots.forEachIndexed { index, robot ->
             if (robot.health > 0) {
                 numNonZero++
-                if (firstNonZero == null) firstNonZero = robot.player
+                if (firstNonZero < 0) firstNonZero = index
             }
         }
 
@@ -29,17 +29,15 @@ data class Arena(val activePlayer: Int,
     }
 
     fun nextPlayer(): Arena {
-        val remainingCompetitors = robots.filter { activePlayer == it.player || it.health > 0 }
-        val nextIndex = remainingCompetitors
-            .map { it.player }
-            .indexOf(activePlayer)
-            .inc()
-            .rem(remainingCompetitors.size)
-        return Arena(remainingCompetitors[nextIndex].player,
-                     robots,
-                     bounds,
-                     terrain,
-                     effects)
+
+        if (winner != null) return this
+        else {
+            var c = activePlayer
+            do {
+                c = (c + 1) % robots.size
+            } while (robots[c].health <= 0)
+            return copy(activePlayer = c)
+        }
     }
 
     /**
