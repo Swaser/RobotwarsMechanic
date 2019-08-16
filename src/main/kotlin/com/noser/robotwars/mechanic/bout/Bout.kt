@@ -7,17 +7,14 @@ import com.noser.robotwars.mechanic.Detailed.Companion.single
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
 import com.noser.robotwars.mechanic.tournament.TournamentParameters
-import io.reactivex.Observer
-import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.PublishSubject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.Flow
 import kotlin.random.Random
 
 /**
- * The bout gets its own unique uuid so it can easily identified
+ * The bout gets its own unique uuid so it can easily be identified
  */
 class Bout(private val asyncFactory: AsyncFactory,
            val competitors: List<Competitor>,
@@ -31,8 +28,6 @@ class Bout(private val asyncFactory: AsyncFactory,
 
     val uuid: UUID = UUID.randomUUID()
 
-    private var pendingResponse = PendingResponse.none()
-
     @Volatile
     var state: BoutState = BoutState.REGISTERED
         private set
@@ -40,13 +35,15 @@ class Bout(private val asyncFactory: AsyncFactory,
     var winner: Competitor? = null
         private set
 
-    private val subject = asyncFactory.subject<Pair<BoutState, Detailed<Arena>>>()
-
     @Volatile
     lateinit var arena: Arena
         private set
 
-    val deathnote: MutableList<Int> = mutableListOf()
+    private val subject = asyncFactory.subject<Pair<BoutState, Detailed<Arena>>>()
+
+    private var pendingMoveRequest: PendingMoveRequest? = null
+
+    private val deathnote: MutableList<Int> = mutableListOf()
 
     fun getArenaOrNull(): Arena? {
         return if (::arena.isInitialized) arena else null
@@ -57,109 +54,77 @@ class Bout(private val asyncFactory: AsyncFactory,
         return subject
     }
 
-    private val stillRunningObserver: Flow.Subscriber<Bout> = AsyncFactory.noBackpressureSubscriber(
+    private val startedObserver: Flow.Subscriber<Bout> = AsyncFactory.noBackpressureSubscriber(
+        onNext = { doNextStep() },
+        onComplete = {},
+        onError = { subject.onError(it) },
+        onSubscribe = {}
+    )
+
+    private val moveRequestPendingObserver: Flow.Subscriber<Pair<Detailed<Arena>, Move>> = AsyncFactory.noBackpressureSubscriber(
         onNext = {
-            if (deathnote.isNotEmpty()) {
-                executeDeathnote()
-            } else {
-                conductBoutRecursive()
-            }
+            applyMoveResponse(it.first, it.second)
+            doNextStep()
         },
         onComplete = {},
         onError = { subject.onError(it) },
         onSubscribe = {}
     )
 
-    private val moveRequestPendingObserver: Observer<Move> = object : Observer<Move> {
-        override fun onComplete() {}
-
-        override fun onSubscribe(subscription: Disposable) {}
-
-        override fun onNext(move: Move) {
-            applyMoveResponse(move)
-
-            if (deathnote.isNotEmpty()) {
-                executeDeathnote()
-            } else {
-                conductBoutRecursive()
-            }
-        }
-
-        override fun onError(e: Throwable) {}
-    }
-
-    private val resolvedObserver: Flow.Subscriber<Bout> = AsyncFactory.noBackpressureSubscriber(
+    private val finishedObserver: Flow.Subscriber<Bout> = AsyncFactory.noBackpressureSubscriber(
         onNext = {},
         onComplete = { subject.onComplete() },
         onError = { subject.onError(it) },
         onSubscribe = {}
     )
 
-    private fun conductBoutRecursive() {
+    private fun conductBoutRecursive() = when (state) {
 
-        when (state) {
+        BoutState.REGISTERED -> asyncFactory
+            .later { start(parameters) }
+            .subscribe(startedObserver)
 
-            BoutState.REGISTERED -> asyncFactory
-                .later { start(parameters) }
-                .subscribe(stillRunningObserver)
+        BoutState.STARTED -> sendMoveRequest()
+            .subscribe(moveRequestPendingObserver)
 
-            BoutState.STARTED -> nextMove().subscribe(moveRequestPendingObserver)
-
-            else -> {
-                winner = arena.winner?.let { competitors[it] }
-                val winner = checkNotNull(winner)
-                asyncFactory
-                    .later {
-                        competitors.forEach {
-                            try {
-                                it.publishResult(arena, winner)
-                            } catch (e: Exception) {
-                                // TODO what to do here
-                            }
+        BoutState.FINISHED -> {
+            winner = arena.winner?.let { competitors[it] }
+            val winner = checkNotNull(winner)
+            asyncFactory
+                .later {
+                    competitors.forEach {
+                        try {
+                            it.publishResult(arena, winner)
+                        } catch (e: Exception) {
+                            // TODO what to do here
                         }
-                        this@Bout
                     }
-                    .subscribe(resolvedObserver)
-            }
+                    this@Bout
+                }
+                .subscribe(finishedObserver)
         }
     }
 
-    fun executeDeathnote() {
+    private fun doNextStep() {
+        if (deathnote.isNotEmpty()) {
+            executeDeathnote()
+        } else {
+            conductBoutRecursive()
+        }
+    }
+
+    private fun executeDeathnote() {
         asyncFactory
             .later {
                 deathnote.forEach { player ->
                     val detailedAfterDeathnote =
-                        single(arena) {"Tick off player $it from deathnote"}
+                        single(arena) {"Tick off player $player from deathnote"}
                         .flatMap { arena.killRobot(player) }
+                    arena = detailedAfterDeathnote.value
                     subject.onNext(Pair(state, detailedAfterDeathnote))
                 }
-                this
-            }.subscribe(stillRunningObserver)
-    }
-
-    private fun start(parameters: TournamentParameters): Bout {
-        val random = Random(getSeed(parameters))
-        parameters.randomSeed = random.nextLong()
-        val terrain = createFreshTerrain(parameters, random)
-        val effects = createEffects(parameters, terrain, random)
-        val robots = (0 until competitors.size)
-            .fold<Int, MutableList<Robot>>(mutableListOf()) { list, player ->
-                    val robot = Robot(player,
-                                      createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
-                                      parameters.robotEnergyInitial,
-                                      parameters.robotEnergyMax,
-                                      parameters.robotHealthInitial,
-                                      parameters.robotShieldInitial,
-                                      parameters.robotShieldMax)
-                    list.add(robot)
-                    list
-        }
-
-        arena = Arena(0, robots, parameters.bounds, terrain, effects)
-
-        state = BoutState.STARTED
-        subject.onNext(Pair(state, none(arena)))
-        return this
+                this@Bout
+            }.subscribe(startedObserver)
     }
 
     private fun getSeed(parameters: TournamentParameters): Long {
@@ -184,31 +149,66 @@ class Bout(private val asyncFactory: AsyncFactory,
         return possiblePositions.random(random)
     }
 
-    private fun nextMove(): PublishSubject<Move> {
+    private fun start(parameters: TournamentParameters): Bout {
+        val random = Random(getSeed(parameters))
+        parameters.randomSeed = random.nextLong()
+        val terrain = createFreshTerrain(parameters, random)
+        val effects = createEffects(parameters, terrain, random)
+        val robots = (0 until competitors.size)
+            .fold<Int, MutableList<Robot>>(mutableListOf()) { list, player ->
+                val robot = Robot(player,
+                                  createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
+                                  parameters.robotEnergyInitial,
+                                  parameters.robotEnergyMax,
+                                  parameters.robotHealthInitial,
+                                  parameters.robotShieldInitial,
+                                  parameters.robotShieldMax)
+                list.add(robot)
+                list
+            }
 
-        val detailedBeforeMove = arena.addEnergyTo(arena.activePlayer, parameters.energyRefill)
+        arena = Arena(0, robots, parameters.bounds, terrain, effects)
 
-        arena = detailedBeforeMove.value
+        state = BoutState.STARTED
 
-        pendingResponse = PendingResponse.new()
-
-        val moveRequest = createMoveRequest(pendingResponse.uuid.toString(), uuid.toString(), arena)
-
-        requestMove(moveRequest)
-
-        return pendingResponse.subject
+        subject.onNext(Pair(state, single(arena){ "Bout ($uuid) has started" }))
+        return this
     }
 
-    fun moveResponse(move: Move) {
-        val expectedRequestUuid = pendingResponse.uuid.toString()
+    private fun sendMoveRequest(): Flow.Publisher<Pair<Detailed<Arena>, Move>> {
+
+        // refill energy of active player
+        val detailedBeforeMove = arena.addEnergyTo(arena.activePlayer, parameters.energyRefill)
+
+        // remember the current state
+        val pendingRequest = PendingMoveRequest(detailedBeforeMove, asyncFactory)
+        pendingMoveRequest = pendingRequest
+
+        // create and send move request
+        val request = MoveRequest(pendingRequest.uuid.toString(),
+                                  uuid.toString(),
+                                  pendingRequest.detailedArena.value,
+                                  competitors.map { competitors.indexOf(it) to it }.toMap())
+        competitors[request.arena.activePlayer].nextMove(request)
+
+        // give them something to listen to
+        return pendingRequest.subject
+    }
+
+    fun receiveMoveResponse(move: Move) {
+        val pendingRequest = pendingMoveRequest
         when {
-            move.requestId != expectedRequestUuid -> single(arena) { "Received answer for invalid move request" }
-            else -> pendingResponse.moveResponseReceived(move)
+            pendingRequest == null -> logger.warn("Received answer without pending move request: $move")
+            move.requestId != pendingRequest.uuid.toString() -> logger.warn("Received answer for invalid move request: $move")
+            else -> {
+                pendingMoveRequest = null
+                pendingRequest.moveResponseReceived(move)
+            }
         }
     }
 
-    private fun applyMoveResponse(move: Move) {
-        val detailedAfterMove = none(arena)
+    private fun applyMoveResponse(detailedBeforeMove: Detailed<Arena>, move: Move) {
+        val detailedAfterMove = detailedBeforeMove
             .flatMap { applyMove(move)(it) }
             .map { it.nextPlayer() }
 
@@ -219,19 +219,6 @@ class Bout(private val asyncFactory: AsyncFactory,
         }
 
         subject.onNext(Pair(state, detailedAfterMove))
-    }
-
-    private fun createMoveRequest(currentMoveRequestUuid: String,
-                                  boutUuid: String,
-                                  anArena: Arena): MoveRequest {
-        return MoveRequest(currentMoveRequestUuid,
-                           boutUuid,
-                           anArena,
-                           competitors.map { competitors.indexOf(it) to it }.toMap())
-    }
-
-    private fun requestMove(request: MoveRequest) {
-        competitors[request.arena.activePlayer].nextMove(request)
     }
 
     override fun equals(other: Any?): Boolean {

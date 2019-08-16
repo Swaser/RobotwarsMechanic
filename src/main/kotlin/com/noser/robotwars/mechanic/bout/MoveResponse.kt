@@ -112,6 +112,10 @@ data class Move(val requestId: String,
         }
         return single(arena) { "$player starts its move" }
     }
+
+    override fun toString(): String {
+        return "Move(requestId='$requestId', player=$player, directions=$directions, loadShield=$loadShield, shootDirection=$shootDirection, shootEnergy=$shootEnergy, ramDirection=$ramDirection)"
+    }
 }
 
 object Moves {

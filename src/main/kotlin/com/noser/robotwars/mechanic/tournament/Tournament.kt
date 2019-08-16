@@ -34,18 +34,14 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
     private val subject = asyncFactory.subject<Bout>()
 
-    private fun observe(): Flow.Processor<Bout, Bout> = subject
-
     fun getStatistics(): TournamentStatistics = statistics
 
     /** call this fun repeatedly until tournament done */
-    fun startNextRoundOfBouts() {
-        asyncFactory.later {
-            val findStartableBouts = findStartableBouts()
-            if (findStartableBouts.isNotEmpty()) {
-                findStartableBouts.forEach { startBout(it) }
-            }
-        }.subscribe(AsyncFactory.noBackpressureSubscriber({},{},{},{}))
+    private fun startNextRoundOfBouts() {
+        val findStartableBouts = findStartableBouts()
+        if (findStartableBouts.isNotEmpty()) {
+            findStartableBouts.forEach { startBout(it) }
+        }
     }
 
     private fun updateTournamentState(tournamentState: TournamentState) {
@@ -64,7 +60,7 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
         startNextRoundOfBouts()
 
-        return observe()
+        return subject
     }
 
     private fun generateBouts(competitors: MutableSet<Competitor>): Collection<Bout> {
@@ -110,7 +106,11 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
         registerBoutStarted(bout)
 
-        bout.conductBout().subscribe(AsyncFactory.noBackpressureSubscriber({}, {registerBoutEnded(bout)}, {}, {}))
+        bout.conductBout()
+            .subscribe(AsyncFactory.noBackpressureSubscriber(
+                onNext = { it.second.component2().forEach(::println) },
+                onComplete = { registerBoutEnded(bout) })
+            )
     }
 
     @Synchronized
