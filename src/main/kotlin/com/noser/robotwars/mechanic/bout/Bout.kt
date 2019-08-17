@@ -123,6 +123,7 @@ class Bout(private val asyncFactory: AsyncFactory,
                     arena = detailedAfterDeathnote.value
                     subject.onNext(Pair(state, detailedAfterDeathnote))
                 }
+                deathnote.clear()
                 this@Bout
             }.subscribe(startedObserver)
     }
