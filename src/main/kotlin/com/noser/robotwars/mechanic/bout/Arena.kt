@@ -95,12 +95,12 @@ data class Arena(val activePlayer: Int,
                         nextPos == null                  -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into the wall")
                             .flatMap { it.takeDamage(1) }
-                            .map { withRobots(it) }
+                            .map { arena.withRobots(it) }
 
                         terrain[nextPos] == Terrain.ROCK -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into a rock")
                             .flatMap { it.takeDamage(1) }
-                            .map { withRobots(it) }
+                            .map { arena.withRobots(it) }
 
                         nextRobot != null                -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into ${nextRobot.player}")
@@ -113,10 +113,11 @@ data class Arena(val activePlayer: Int,
                                             .map { other -> arrayOf(afterRamIntoOther, other) }
                                     }
                             }
-                            .map { withRobots(*it) }
+                            .map { arena.withRobots(*it) }
 
                         else                             -> firstRamDamageDone
-                            .flatMap { moveTo(targetRobot.player, nextPos, 0) }
+                            .map { arena.withRobots(it) }
+                            .flatMap { it.moveTo(targetRobot.player, nextPos, 0) }
                     }
                 }
             }

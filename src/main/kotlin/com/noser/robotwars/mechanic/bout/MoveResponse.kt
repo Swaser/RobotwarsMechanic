@@ -110,7 +110,10 @@ data class Move(val requestId: String,
             && ramDirection == null) {
             return single(arena) { "$player passed" }
         }
-        return single(arena) { "$player starts its move" }
+        return single(arena) {
+            val robot = it.findRobot(player).health
+            "$player starts to move (E=${it.findRobot(player).energy},S=${it.findRobot(player).shield},H=$robot)"
+        }
     }
 
     override fun toString(): String {
