@@ -2,7 +2,7 @@ package com.noser.robotwars.mechanic
 
 class Detailed<T>
 private constructor(val value: T,
-                    private val details: List<String>) {
+                    val details: List<String>) {
 
     operator fun component1(): T = value
     operator fun component2(): List<String> = details

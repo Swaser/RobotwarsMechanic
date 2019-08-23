@@ -2,7 +2,6 @@ package com.noser.robotwars.mechanic.bout
 
 import com.noser.robotwars.mechanic.AsyncFactory
 import com.noser.robotwars.mechanic.Detailed
-import com.noser.robotwars.mechanic.Detailed.Companion.none
 import com.noser.robotwars.mechanic.Detailed.Companion.single
 import com.noser.robotwars.mechanic.bout.Moves.applyMove
 import com.noser.robotwars.mechanic.tournament.Competitor
@@ -16,9 +15,11 @@ import kotlin.random.Random
 /**
  * The bout gets its own unique uuid so it can easily be identified
  */
-class Bout(private val asyncFactory: AsyncFactory,
-           val competitors: List<Competitor>,
-           val parameters: TournamentParameters) {
+class Bout(
+    private val asyncFactory: AsyncFactory,
+    val competitors: List<Competitor>,
+    val parameters: TournamentParameters
+) {
 
     private val logger: Logger = LoggerFactory.getLogger("Bout")
 
@@ -39,7 +40,7 @@ class Bout(private val asyncFactory: AsyncFactory,
     lateinit var arena: Arena
         private set
 
-    private val subject = asyncFactory.subject<Pair<BoutState, Detailed<Arena>>>()
+    private val subject = asyncFactory.subject<Pair<Bout, List<String>>>()
 
     private var pendingMoveRequest: PendingMoveRequest? = null
 
@@ -49,7 +50,7 @@ class Bout(private val asyncFactory: AsyncFactory,
         return if (::arena.isInitialized) arena else null
     }
 
-    fun conductBout(): Flow.Publisher<Pair<BoutState, Detailed<Arena>>> {
+    fun conductBout(): Flow.Publisher<Pair<Bout, List<String>>> {
         conductBoutRecursive()
         return subject
     }
@@ -61,22 +62,43 @@ class Bout(private val asyncFactory: AsyncFactory,
         onSubscribe = {}
     )
 
-    private val moveRequestPendingObserver: Flow.Subscriber<Pair<Detailed<Arena>, Move>> = AsyncFactory.noBackpressureSubscriber(
-        onNext = {
-            applyMoveResponse(it.first, it.second)
-            doNextStep()
-        },
-        onComplete = {},
-        onError = { subject.onError(it) },
-        onSubscribe = {}
-    )
+    private val moveRequestPendingObserver: Flow.Subscriber<Pair<Detailed<Arena>, Move>> =
+        AsyncFactory.noBackpressureSubscriber(
+            onNext = {
+                applyMoveResponse(it.first, it.second)
+                doNextStep()
+            },
+            onComplete = {},
+            onError = { subject.onError(it) },
+            onSubscribe = {}
+        )
 
-    private val finishedObserver: Flow.Subscriber<Bout> = AsyncFactory.noBackpressureSubscriber(
-        onNext = {},
-        onComplete = { subject.onComplete() },
-        onError = { subject.onError(it) },
-        onSubscribe = {}
-    )
+    private fun doNextStep() {
+        when {
+            state == BoutState.STARTED && arena.winner != null -> finishBout()
+            state == BoutState.STARTED && deathnote.isNotEmpty() -> executeDeathnote()
+            else -> conductBoutRecursive()
+        }
+    }
+
+    private fun finishBout() {
+        asyncFactory.later {
+            state = BoutState.FINISHED
+            this@Bout
+        }.subscribe(startedObserver)
+    }
+
+    private fun executeDeathnote() {
+        asyncFactory.later {
+            deathnote.removeAt(0).let { player ->
+                val detailedAfterDeathnote =
+                    single(arena) { "Tick off player $player from deathnote" }.flatMap { arena.killRobot(player) }
+                arena = detailedAfterDeathnote.value
+                subject.onNext(Pair(this, detailedAfterDeathnote.details))
+            }
+            this@Bout
+        }.subscribe(startedObserver)
+    }
 
     private fun conductBoutRecursive() = when (state) {
 
@@ -89,56 +111,24 @@ class Bout(private val asyncFactory: AsyncFactory,
 
         BoutState.FINISHED -> {
             winner = arena.winner?.let { competitors[it] }
-            val winner = checkNotNull(winner)
-            asyncFactory
-                .later {
-                    competitors.forEach {
-                        try {
-                            it.publishResult(arena, winner)
-                        } catch (e: Exception) {
-                            // TODO what to do here
-                        }
-                    }
-                    this@Bout
-                }
-                .subscribe(finishedObserver)
+            subject.onComplete()
         }
-    }
-
-    private fun doNextStep() {
-        if (deathnote.isNotEmpty()) {
-            executeDeathnote()
-        } else {
-            conductBoutRecursive()
-        }
-    }
-
-    private fun executeDeathnote() {
-        asyncFactory
-            .later {
-                deathnote.forEach { player ->
-                    val detailedAfterDeathnote =
-                        single(arena) {"Tick off player $player from deathnote"}
-                        .flatMap { arena.killRobot(player) }
-                    arena = detailedAfterDeathnote.value
-                    subject.onNext(Pair(state, detailedAfterDeathnote))
-                }
-                deathnote.clear()
-                this@Bout
-            }.subscribe(startedObserver)
     }
 
     private fun getSeed(parameters: TournamentParameters): Long {
-        val seed = parameters.randomSeed ?: System.currentTimeMillis()
+        val seed = parameters.randomSeed
+            ?: System.currentTimeMillis()
         logger.debug("Just for the record, using seed $seed")
         return seed
     }
 
-    private fun createUniquePosition(bounds: Bounds,
-                                     random: Random,
-                                     robots: List<Position>,
-                                     terrain: Grid<Terrain>,
-                                     effects: Grid<Effect>): Position {
+    private fun createUniquePosition(
+        bounds: Bounds,
+        random: Random,
+        robots: List<Position>,
+        terrain: Grid<Terrain>,
+        effects: Grid<Effect>
+    ): Position {
 
         val possiblePositions = bounds.positions
             .filter { !robots.contains(it) }
@@ -155,24 +145,26 @@ class Bout(private val asyncFactory: AsyncFactory,
         parameters.randomSeed = random.nextLong()
         val terrain = createFreshTerrain(parameters, random)
         val effects = createEffects(parameters, terrain, random)
-        val robots = (0 until competitors.size)
-            .fold<Int, MutableList<Robot>>(mutableListOf()) { list, player ->
-                val robot = Robot(player,
-                                  createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
-                                  parameters.robotEnergyInitial,
-                                  parameters.robotEnergyMax,
-                                  parameters.robotHealthInitial,
-                                  parameters.robotShieldInitial,
-                                  parameters.robotShieldMax)
-                list.add(robot)
-                list
-            }
+        val robots = competitors.foldIndexed(mutableListOf<Robot>()) { player, list, competitor ->
+            if (competitor.isKilled()) deathnote.add(player) // make sure dead competitors stay dead!!!
+            val robot = Robot(
+                player,
+                createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
+                parameters.robotEnergyInitial,
+                parameters.robotEnergyMax,
+                parameters.robotHealthInitial,
+                parameters.robotShieldInitial,
+                parameters.robotShieldMax
+            )
+            list.add(robot)
+            list
+        }
 
         arena = Arena(0, robots, parameters.bounds, terrain, effects)
 
         state = BoutState.STARTED
 
-        subject.onNext(Pair(state, single(arena){ "Bout ($uuid) has started" }))
+        subject.onNext(Pair(this, listOf("Bout ($uuid) has started" )))
         return this
     }
 
@@ -186,10 +178,12 @@ class Bout(private val asyncFactory: AsyncFactory,
         pendingMoveRequest = pendingRequest
 
         // create and send move request
-        val request = MoveRequest(pendingRequest.uuid.toString(),
-                                  uuid.toString(),
-                                  pendingRequest.detailedArena.value,
-                                  competitors.map { competitors.indexOf(it) to it }.toMap())
+        val request = MoveRequest(
+            pendingRequest.uuid.toString(),
+            uuid.toString(),
+            pendingRequest.detailedArena.value,
+            competitors.map { competitors.indexOf(it) to it }.toMap()
+        )
         competitors[request.arena.activePlayer].nextMove(request)
 
         // give them something to listen to
@@ -215,11 +209,7 @@ class Bout(private val asyncFactory: AsyncFactory,
 
         arena = detailedAfterMove.value
 
-        arena.winner?.also {
-            state = BoutState.FINISHED
-        }
-
-        subject.onNext(Pair(state, detailedAfterMove))
+        subject.onNext(Pair(this, detailedAfterMove.details))
     }
 
     override fun equals(other: Any?): Boolean {
@@ -237,12 +227,18 @@ class Bout(private val asyncFactory: AsyncFactory,
         return uuid.hashCode()
     }
 
-    fun kill(uuid: String) {
+    fun kill(uuid: String): Boolean {
         val competitor = competitors.firstOrNull { it.uuid.toString() == uuid }
-        if(competitor != null) {
+        if (competitor != null) {
             deathnote.add(competitors.indexOf(competitor))
             competitor.kill()
+            return true
         }
+        return false
+    }
+
+    fun finish() {
+        competitors.forEach { kill(it.uuid.toString()) }
     }
 
     companion object {
@@ -258,7 +254,11 @@ class Bout(private val asyncFactory: AsyncFactory,
             }
         }
 
-        private fun createEffects(parameters: TournamentParameters, terrain: Grid<Terrain>, random: Random): Grid<Effect> {
+        private fun createEffects(
+            parameters: TournamentParameters,
+            terrain: Grid<Terrain>,
+            random: Random
+        ): Grid<Effect> {
             return terrain.mapAll { _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < parameters.effectBurnableChance)
                     Effect.burnable()

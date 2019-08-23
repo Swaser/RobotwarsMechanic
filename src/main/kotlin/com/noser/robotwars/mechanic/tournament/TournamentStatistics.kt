@@ -23,4 +23,8 @@ class TournamentStatistics {
     fun getAggregatedStats(): List<CompetitorStatistics> {
         return stats.values.toList()
     }
+
+    fun clear() {
+        stats.clear()
+    }
 }

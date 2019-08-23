@@ -6,13 +6,14 @@ import com.noser.robotwars.mechanic.tournament.TournamentState.FINISHED
 import com.noser.robotwars.mechanic.tournament.TournamentState.OPEN
 import com.noser.robotwars.mechanic.tournament.TournamentState.STARTED
 import java.util.*
-import java.util.concurrent.Flow
 
-class Tournament(private val asyncFactory: AsyncFactory,
-                 val name: String,
-                 val parameters: TournamentParameters,
-                 private val listener: TournamentChangeListener,
-                 private val boutGenerator: (Set<Competitor>) -> Set<List<Competitor>>) {
+class Tournament(
+    private val asyncFactory: AsyncFactory,
+    val name: String,
+    val parameters: TournamentParameters,
+    private val listener: TournamentChangeListener,
+    private val pairingsGenerator: (Set<Competitor>) -> Set<List<Competitor>>
+) {
 
     val uuid: UUID = UUID.randomUUID()
 
@@ -30,41 +31,37 @@ class Tournament(private val asyncFactory: AsyncFactory,
 
     private val completedBouts = mutableSetOf<Bout>()
 
-    private val notPlaying = mutableSetOf<Competitor>()
+    private val subject = asyncFactory.subject<Tournament>()
 
-    private val subject = asyncFactory.subject<Bout>()
+    fun observe() = subject
 
     fun getStatistics(): TournamentStatistics = statistics
 
-    /** call this fun repeatedly until tournament done */
-    private fun startNextRoundOfBouts() {
-        val findStartableBouts = findStartableBouts()
-        if (findStartableBouts.isNotEmpty()) {
-            findStartableBouts.forEach { startBout(it) }
-        }
+    fun addCompetitor(competitor: Competitor) {
+        check(state == OPEN)
+        competitors.add(competitor)
+        subject.onNext(this)
     }
 
-    private fun updateTournamentState(tournamentState: TournamentState) {
-        state = tournamentState
-        notifyTournamentUpdated(this)
+    fun getAllCompetitors(): List<Competitor> {
+        return competitors.toList()
     }
 
-    fun start(): Flow.Processor<Bout, Bout> {
+    fun getAllBouts(): List<Bout> {
+        return openBouts.union(runningBouts)
+            .union(completedBouts)
+            .toList()
+    }
+
+    fun start() {
         check(state == OPEN)
         check(competitors.size >= 2)
 
-        notPlaying.addAll(competitors)
-        openBouts.addAll(generateBouts(competitors))
-
         updateTournamentState(STARTED)
 
+        openBouts.addAll(generateBouts(competitors))
+
         startNextRoundOfBouts()
-
-        return subject
-    }
-
-    private fun generateBouts(competitors: MutableSet<Competitor>): Collection<Bout> {
-        return boutGenerator(competitors).map { Bout(asyncFactory, it, parameters) }
     }
 
     fun isOpen(): Boolean {
@@ -79,17 +76,35 @@ class Tournament(private val asyncFactory: AsyncFactory,
         return state == FINISHED
     }
 
-    fun addCompetitor(competitor: Competitor) {
-        check(state == OPEN)
-        competitors.add(competitor)
-        notifyTournamentUpdated(this)
+    private fun updateTournamentState(tournamentState: TournamentState) {
+        state = tournamentState
+    }
+
+    private fun generateBouts(competitors: MutableSet<Competitor>): Collection<Bout> {
+        return pairingsGenerator(competitors).map { competitorList ->
+            Bout(
+                asyncFactory, createClones(competitorList), parameters
+            )
+        }
+    }
+
+    private fun createClones(competitorList: List<Competitor>) = competitorList.map { it.copy() }
+
+    /** call this fun repeatedly until tournament done */
+    private fun startNextRoundOfBouts() {
+        val findStartableBouts = findStartableBouts()
+        if (findStartableBouts.isNotEmpty()) {
+            findStartableBouts.forEach { startBout(it) }
+        }
     }
 
     @Synchronized
     private fun findStartableBouts(): List<Bout> {
 
         val startableBouts = mutableListOf<Bout>()
-        val idleCompetitors = notPlaying.toMutableSet()
+        val idleCompetitors = competitors.subtract(runningBouts.flatMap { it.competitors })
+            .toMutableSet()
+
         for (openBout in openBouts) {
             if (idleCompetitors.size < 2) break // less than 2 competitors not playing anymore, stop searching for playable bouts
             if (idleCompetitors.containsAll(openBout.competitors)) {
@@ -107,50 +122,52 @@ class Tournament(private val asyncFactory: AsyncFactory,
         registerBoutStarted(bout)
 
         bout.conductBout()
-            .subscribe(AsyncFactory.noBackpressureSubscriber(
-                onNext = { it.second.component2().forEach(::println) },
-                onComplete = { registerBoutEnded(bout) })
+            .subscribe(
+                AsyncFactory.noBackpressureSubscriber(onNext = {
+                    notifyBoutChanged(it.first)
+                    it.second.forEach(::println)
+                }, onComplete = {
+                    getAllBouts().find { it.uuid == bout.uuid }?.let {
+                        registerBoutEnded(it)
+                        notifyBoutChanged(it)
+                    }
+                })
             )
     }
 
     @Synchronized
     private fun registerBoutStarted(bout: Bout) {
 
-        markCompetitorPlaying(bout.competitors)
-
         runningBouts.add(bout)
         openBouts.remove(bout)
 
-        notifyBoutUpdated(bout)
+        subject.onNext(this)
     }
 
     @Synchronized
     private fun registerBoutEnded(bout: Bout) {
-
-        markCompetitorNotPlaying(bout.competitors)
 
         runningBouts.remove(bout)
         completedBouts.add(bout)
 
         updateStatistics(bout)
 
-        notifyBoutUpdated(bout)
+        subject.onNext(this)
 
-        if(openBouts.union(runningBouts).isNotEmpty()) {
-            startNextRoundOfBouts()
-            subject.onNext(bout)
-        } else {
-            updateTournamentState(FINISHED)
-            subject.onComplete()
+        when {
+            openBouts.isNotEmpty() -> startNextRoundOfBouts()
+            runningBouts.isNotEmpty() -> Unit
+            else -> registerTournamentEnded()
         }
     }
 
-    private fun notifyBoutUpdated(bout: Bout) {
-        listener.notifyBoutChanged(bout)
+    private fun registerTournamentEnded() {
+        updateTournamentState(FINISHED)
+        subject.onComplete()
     }
 
-    private fun notifyTournamentUpdated(tournament: Tournament) {
-        listener.notifyTournamentChanged(tournament)
+    private fun notifyBoutChanged(bout: Bout) {
+        listener.notifyBoutChanged(bout)
     }
 
     private fun updateStatistics(bout: Bout) {
@@ -158,27 +175,8 @@ class Tournament(private val asyncFactory: AsyncFactory,
         statistics.addNewResult(bout)
     }
 
-    @Synchronized
-    fun markCompetitorPlaying(competitors: Collection<Competitor>) {
-
-        check(notPlaying.containsAll(competitors))
-
-        notPlaying.removeAll(competitors)
-    }
-
-    @Synchronized
-    fun markCompetitorNotPlaying(competitors: Collection<Competitor>) {
-
-        check(competitors.none { notPlaying.contains(it) })
-
-        notPlaying.addAll(competitors)
-    }
-
-    fun getAllBouts(): List<Bout> {
-        return openBouts.union(runningBouts).union(completedBouts).toList()
-    }
-
-    fun getCompetitors(): List<Competitor> {
-        return competitors.toList()
+    fun finish() {
+        openBouts.forEach { it.finish() }
+        runningBouts.forEach { it.finish() }
     }
 }
