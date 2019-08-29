@@ -53,9 +53,12 @@ data class Arena(val activePlayer: Int,
     /**
      * Includes effects
      */
-    fun resolveFiring(player: Int, dir: Direction, amount: Int): Detailed<Arena> =
+    fun resolveFiring(player: Int, dir: Direction, amount: Int): Detailed<Arena> {
 
-        findRobot(player).fireCannon(dir, amount).flatMap { (robot, dmg) ->
+        val (dmg,detailedRobot) = findRobot(player).fireCannon(dir, amount)
+        if (dmg == 0) return detailedRobot.map { withRobots(it) }
+
+        return detailedRobot.flatMap { robot ->
             val shotTrajectory = generateSequence(robot.position.move(dir, bounds)) { it.move(dir, bounds) }
             when (val playerHit = findRobotHit(shotTrajectory)?.player) {
                 null -> single(withRobots(robot)) { "$player doesn't hit anything" }
@@ -72,6 +75,7 @@ data class Arena(val activePlayer: Int,
                 }
             }
         }
+    }
 
     fun loadShield(player: Int, amount: Int): Detailed<Arena> {
         return findRobot(player).loadShield(amount).map { withRobots(it) }
