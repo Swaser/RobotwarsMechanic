@@ -13,6 +13,7 @@ class Robot(val player: Int,
             val maxShield: Int) {
 
     init {
+        // class invariants
         check(maxEnergy > 0)
         check(energy >= 0)
         check(energy <= maxEnergy)
@@ -21,6 +22,7 @@ class Robot(val player: Int,
         check(shield <= maxShield)
     }
 
+    /** Convenience function to call copy constructor with the most used options */
     private fun update(energy: Int? = null,
                        shield: Int? = null,
                        health: Int? = null,
@@ -33,54 +35,79 @@ class Robot(val player: Int,
               shield ?: this.shield,
               maxShield)
 
+    /**
+     * Moves the robot to the new postition. Caller must make sure, that the move is possible and that
+     * the robot has enough energy
+     */
     fun moveTo(pos: Position, energyCost: Int): Detailed<Robot> {
+
         check(position.distanceTo(pos) == 1) { "Robot can only move 1 field at a time" }
         check(energyCost >= 0) { "Energy cost of move cannot be negative" }
-        check(energy >= energyCost) { "Robot doesn't have enough energy to move" }
-        return single(update(energy - energyCost, position = pos)) {
+
+        val updatedRobot = update(energy - energyCost, position = pos)
+
+        return single(updatedRobot) {
             val action = if (energyCost == 0) "is pushed" else "moves"
             "$player $action to $pos (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
     fun takeDamage(amount: Int): Detailed<Robot> {
+
         check(amount >= 0) { "damage cannot be negative" }
+
         val shieldDmg = min(shield, amount)
         val healthDmg = amount - shieldDmg
-        return single(update(shield = shield - shieldDmg, health = health - healthDmg)) {
+        val updatedRobot = update(shield = shield - shieldDmg, health = health - healthDmg)
+
+        return single(updatedRobot) {
             "$player takes $amount damage ($shieldDmg to shield) (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
     fun addEnergy(amount: Int): Pair<Int, Detailed<Robot>> {
+
         check(amount >= 0) { "energy cannot be negative" }
+
         val actual = min(maxEnergy - energy, amount)
-        return Pair(actual, single(update(energy + actual)) {
+        val updatedRobot = update(energy + actual)
+
+        return Pair(actual, single(updatedRobot) {
             "$player receives $actual ($amount) energy (E=${it.energy},S=${it.shield},H=${it.health})"
         })
     }
 
     fun ram(dir: Direction): Detailed<Robot> {
-        check(energy >= 1) { "robot must have at least 1 energy to ram" }
-        return single(update(energy - 1)) {
+
+        val updatedRobot = update(energy - 1)
+
+        return single(updatedRobot) {
             "$player rams $dir  (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
     fun loadShield(amount: Int): Detailed<Robot> {
+
         check(amount >= 0) { "shield load amount cannot be negative" }
+
         val actual = min(min(energy, maxShield - shield), amount)
-        return single(update(energy - actual, shield = shield + actual)) {
+        val updatedRobot = update(energy - actual, shield = shield + actual)
+
+        return single(updatedRobot) {
             "$player loads shield by $actual ($amount) (E=${it.energy},S=${it.shield},H=${it.health})"
         }
     }
 
-    fun fireCannon(dir: Direction, amount: Int): Detailed<Pair<Robot, Int>> {
+    fun fireCannon(dir: Direction, amount: Int): Pair<Int,Detailed<Robot>> {
+
         check(amount >= 0) { "fire cannon amount cannot be negative" }
+
         val actual = min(energy, amount)
-        return single(Pair(update(energy - actual), actual)) { (it, _) ->
+        val updatedRobot = update(energy - actual)
+
+        return Pair(actual, single(updatedRobot) {
             "$player fires cannon $dir for $actual ($amount) (E=${it.energy},S=${it.shield},H=${it.health})"
-        }
+        })
     }
 
     override fun toString(): String {

@@ -22,8 +22,8 @@ data class Arena(val activePlayer: Int,
         }
 
         when (numNonZero) {
-            0    -> error("No robot with health > 0 found")
-            1    -> firstNonZero
+            0 -> error("No robot with health > 0 found")
+            1 -> firstNonZero
             else -> null
         }
     }
@@ -53,9 +53,18 @@ data class Arena(val activePlayer: Int,
     /**
      * Includes effects
      */
-    fun resolveFiring(player: Int, dir: Direction, amount: Int): Detailed<Arena> =
+    fun resolveFiring(player: Int, dir: Direction, amount: Int): Detailed<Arena> {
 
-        findRobot(player).fireCannon(dir, amount).flatMap { (robot, dmg) ->
+        val playerRobot = findRobot(player)
+        val playerTerrain = terrain[playerRobot.position]
+        if (!playerTerrain.attackPossible) {
+            return single(this) { "$player cannot fire from ${playerTerrain.name}" }
+        }
+
+        val (dmg, detailedRobot) = playerRobot.fireCannon(dir, amount)
+        if (dmg == 0) return detailedRobot.map { withRobots(it) }
+
+        return detailedRobot.flatMap { robot ->
             val shotTrajectory = generateSequence(robot.position.move(dir, bounds)) { it.move(dir, bounds) }
             when (val playerHit = findRobotHit(shotTrajectory)?.player) {
                 null -> single(withRobots(robot)) { "$player doesn't hit anything" }
@@ -66,12 +75,13 @@ data class Arena(val activePlayer: Int,
                             is Effect.Burnable -> directFireResolved
                                 .ignite(robotHit.position)
                                 .flatMap { arena: Arena -> arena.takeSimpleDamage(robotHit.player, 1) }
-                            else               -> none(directFireResolved)
+                            else -> none(directFireResolved)
                         }
                     }
                 }
             }
         }
+    }
 
     fun loadShield(player: Int, amount: Int): Detailed<Arena> {
         return findRobot(player).loadShield(amount).map { withRobots(it) }
@@ -84,15 +94,15 @@ data class Arena(val activePlayer: Int,
             val targetPos = robot.position.move(dir, bounds)
             val targetRobot = targetPos?.let { energyResolved.findRobot(it) }
             when {
-                targetPos == null   -> single(energyResolved) { "$player rams the wall" }
+                targetPos == null -> single(energyResolved) { "$player rams the wall" }
                 targetRobot == null -> single(energyResolved) { "$player doesn't hit anyone" }
-                else                -> {
+                else -> {
                     val nextPos = targetPos.move(dir, bounds)
                     val nextRobot = nextPos?.let { energyResolved.findRobot(it) }
                     val firstRamDamageDone = targetRobot.takeDamage(1)
 
                     when {
-                        nextPos == null                  -> firstRamDamageDone
+                        nextPos == null -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into the wall")
                             .flatMap { it.takeDamage(1) }
                             .map { energyResolved.withRobots(it) }
@@ -102,7 +112,7 @@ data class Arena(val activePlayer: Int,
                             .flatMap { it.takeDamage(1) }
                             .map { energyResolved.withRobots(it) }
 
-                        nextRobot != null                -> firstRamDamageDone
+                        nextRobot != null -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into ${nextRobot.player}")
                             .flatMap { rammed ->
                                 rammed
@@ -115,7 +125,7 @@ data class Arena(val activePlayer: Int,
                             }
                             .map { energyResolved.withRobots(*it) }
 
-                        else                             -> firstRamDamageDone
+                        else -> firstRamDamageDone
                             .map { energyResolved.withRobots(it) }
                             .flatMap { it.moveTo(targetRobot.player, nextPos, 0) }
                     }
@@ -147,7 +157,7 @@ data class Arena(val activePlayer: Int,
     fun applyEffects(player: Int): Detailed<Arena> {
         val robot = findRobot(player)
         return when (val effect = effects[robot.position]) {
-            is Effect.Fire   -> single(this) { "$player is in fire" }.flatMap {
+            is Effect.Fire -> single(this) { "$player is in fire" }.flatMap {
                 robot.takeDamage(effect.amount).map { withRobots(it) }
             }
             is Effect.Energy -> single(this) { "$player found energy" }
@@ -162,7 +172,7 @@ data class Arena(val activePlayer: Int,
                             })
                         }
                 }
-            else             -> none(this)
+            else -> none(this)
         }
     }
 
