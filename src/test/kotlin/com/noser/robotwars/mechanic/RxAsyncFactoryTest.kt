@@ -1,5 +1,6 @@
 package com.noser.robotwars.mechanic
 
+import org.junit.Ignore
 import org.junit.Test
 import java.util.concurrent.Flow
 import kotlin.test.assertEquals
@@ -19,6 +20,7 @@ class RxAsyncFactoryTest {
         Thread.sleep(200L)
     }
 
+    @Ignore
     @Test
     fun veryNoStackOverflow() {
 

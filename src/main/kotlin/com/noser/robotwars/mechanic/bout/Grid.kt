@@ -1,7 +1,7 @@
 package com.noser.robotwars.mechanic.bout
 
 class Grid<V>
-private constructor(private val bounds: Bounds,
+private constructor(val bounds: Bounds,
                     private val grid: Map<Position, V>) {
 
     constructor(bounds: Bounds, initializer: (Position) -> V)

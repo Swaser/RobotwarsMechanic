@@ -91,23 +91,11 @@ class Bout(private val asyncFactory: AsyncFactory,
     private fun start(parameters: TournamentParameters): Bout {
 
         val random = Random(System.currentTimeMillis())
-        val terrain = createFreshTerrain(parameters, random)
+        val (terrain, robots) = generateTerrainAndRobots(parameters, random)
 
         arena = Arena(
             0,
-            (0 until competitors.size)
-                .fold(mutableListOf()) { list, player ->
-                    val robot = Robot(player,
-                                      createUniquePosition(parameters.bounds, random, list.map(Robot::position)),
-                                      parameters.startingEnergy,
-                                      parameters.maxEnergy,
-                                      parameters.startingHealth,
-                                      parameters.startingShield,
-                                      parameters.maxShield)
-                    list.add(robot)
-                    list
-                }
-            ,
+            robots,
             parameters.bounds,
             terrain,
             terrain.mapAll { _, aTerrain ->
@@ -123,6 +111,68 @@ class Bout(private val asyncFactory: AsyncFactory,
         state = BoutState.STARTED
         subject.onNext(Pair(state, Detailed.none(arena)))
         return this
+    }
+
+    private fun generateTerrainAndRobots(
+        parameters: TournamentParameters,
+        random: Random
+    ): Pair<Grid<Terrain>, List<Robot>> {
+
+        var terrain : Grid<Terrain>
+        var robots : List<Robot>
+
+        do {
+            terrain = createFreshTerrain(parameters, random)
+            robots = (0 until competitors.size)
+                .fold(mutableListOf()) { list, player ->
+                    val robot = Robot(
+                        player,
+                        createUniquePosition(parameters.bounds, random, list.map(Robot::position)),
+                        parameters.startingEnergy,
+                        parameters.maxEnergy,
+                        parameters.startingHealth,
+                        parameters.startingShield,
+                        parameters.maxShield
+                    )
+                    list.add(robot)
+                    list
+                }
+
+            val costs = djiekstra(terrain, robots[0].position)
+            val allReachable = robots.drop(1).fold(1 as Int?) { memo, robot ->
+                memo?.let { aMemo -> costs[robot.position]?.let { it + aMemo } }
+            } != null
+
+        } while (!allReachable)
+
+        return Pair(terrain, robots)
+    }
+
+    private fun djiekstra(terrain : Grid<Terrain>, pos : Position) : Grid<Int?> {
+
+        val seen : MutableList<Pair<Position,Int>> = mutableListOf()
+        val candidates : MutableList<Pair<Position,Int>> = mutableListOf(Pair(pos,0))
+
+        while (candidates.isNotEmpty()) {
+
+            val candidate = candidates.minBy { it.second }!!
+            val (currentPos,currentCosts) = candidate
+            candidates.remove(candidate)
+
+            val moves = listOf(*Direction.values())
+                .asSequence()
+                .mapNotNull { currentPos.move(it, terrain.bounds) }
+                .filter { aPos -> seen.find { it.first == aPos } == null }
+                .map { Pair(it,terrain[it].movementCost) }
+                .filter { it.second < 1000 }
+                .map { (aPos,cost) -> Pair(aPos,cost+currentCosts) }
+                .toList()
+
+            seen.addAll(moves)
+            candidates.addAll(moves)
+        }
+
+        return Grid(terrain.bounds) { aPos -> seen.find { it.first == aPos} ?.second  }
     }
 
     private fun createUniquePosition(bounds: Bounds,
