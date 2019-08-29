@@ -305,7 +305,7 @@ class Bout(
         ): Grid<Effect> {
             return terrain.mapAll { _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < parameters.effectBurnableChance)
-                    Effect.burnable()
+                    if(random.nextDouble() < 0.5) Effect.burnable() else Effect.fire()
                 else if (aTerrain != Terrain.ROCK && random.nextDouble() < parameters.effectEnergyChance)
                     Effect.energy(random.nextInt(parameters.effectEnergyMax) + 1)
                 else
