@@ -21,6 +21,7 @@ class Robot(val player: Int,
         check(shield <= maxShield)
     }
 
+    /** Convenience function to call copy constructor with the most used options */
     private fun update(energy: Int? = null,
                        shield: Int? = null,
                        health: Int? = null,
@@ -33,11 +34,19 @@ class Robot(val player: Int,
               shield ?: this.shield,
               maxShield)
 
+    /**
+     * Moves the robot to the new postition. Caller must make sure, that the move is possible and that
+     * the robot has enough energy
+     */
     fun moveTo(pos: Position, energyCost: Int): Detailed<Robot> {
+
         check(position.distanceTo(pos) == 1) { "Robot can only move 1 field at a time" }
         check(energyCost >= 0) { "Energy cost of move cannot be negative" }
         check(energy >= energyCost) { "Robot doesn't have enough energy to move" }
-        return single(update(energy - energyCost, position = pos)) {
+
+        val updatedRobot = update(energy - energyCost, position = pos)
+
+        return single(updatedRobot) {
             val action = if (energyCost == 0) "is pushed" else "moves"
             "$player $action to $pos (E=${it.energy},S=${it.shield},H=${it.health})"
         }
