@@ -100,7 +100,7 @@ class Bout(private val asyncFactory: AsyncFactory,
             terrain,
             terrain.mapAll { _, aTerrain ->
                 if (aTerrain == Terrain.GREEN && random.nextDouble() < 0.05)
-                    Effect.burnable()
+                    if (random.nextDouble() < 0.5) Effect.burnable() else Effect.fire()
                 else if (aTerrain != Terrain.ROCK && random.nextDouble() < 0.05)
                     Effect.energy(random.nextInt(10) + 1)
                 else
