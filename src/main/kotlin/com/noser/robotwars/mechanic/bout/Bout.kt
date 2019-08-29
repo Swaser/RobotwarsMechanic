@@ -181,31 +181,35 @@ class Bout(
         return this
     }
 
+    private data class DEntry(val cost : Int,
+                              val dirs : List<Direction>)
+
     private fun djiekstra(terrain : Grid<Terrain>, pos : Position) : Grid<Int?> {
 
-        val seen : MutableList<Pair<Position,Int>> = mutableListOf()
-        val candidates : MutableList<Pair<Position,Int>> = mutableListOf(Pair(pos,0))
+        val seen : MutableMap<Position, DEntry> = mutableMapOf()
+        val candidates : MutableList<Pair<Position,DEntry>> = mutableListOf(Pair(pos,DEntry(0, emptyList())))
 
         while (candidates.isNotEmpty()) {
 
-            val candidate = candidates.minBy { it.second }!!
+            val candidate = candidates.minBy { it.second.cost }!!
             val (currentPos,currentCosts) = candidate
             candidates.remove(candidate)
 
-            val moves = listOf(*Direction.values())
-                .asSequence()
-                .mapNotNull { currentPos.move(it, terrain.bounds) }
-                .filter { aPos -> seen.find { it.first == aPos } == null }
-                .map { Pair(it,terrain[it].movementCost) }
-                .filter { it.second < 1000 }
-                .map { (aPos,cost) -> Pair(aPos,cost+currentCosts) }
-                .toList()
-
-            seen.addAll(moves)
-            candidates.addAll(moves)
+            for (direction in Direction.values()) {
+                val nextPos = currentPos.move(direction, terrain.bounds)
+                if (nextPos != null && terrain[nextPos] != Terrain.ROCK) {
+                    val nextCosts = currentCosts.cost + terrain[nextPos].movementCost
+                    val seenCosts = seen[nextPos]
+                    if (seenCosts == null || nextCosts < seenCosts.cost) {
+                        val dentry = DEntry(nextCosts, currentCosts.dirs + direction)
+                        seen[nextPos] = dentry
+                        candidates.add(Pair(nextPos,dentry))
+                    }
+                }
+            }
         }
 
-        return Grid(terrain.bounds) { aPos -> seen.find { it.first == aPos} ?.second  }
+        return Grid(terrain.bounds) { aPos -> seen[aPos]?.cost  }
     }
 
     private fun sendMoveRequest(): Flow.Publisher<Pair<Detailed<Arena>, Move>> {
