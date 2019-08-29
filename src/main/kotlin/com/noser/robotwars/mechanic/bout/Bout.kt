@@ -135,7 +135,7 @@ class Bout(
             .filter { terrain[it] == Terrain.GREEN }
             .filter { effects[it] == Effect.none() }
 
-        if (possiblePositions.isEmpty()) throw IllegalStateException("Not enough free space for robots to place them all")
+        check(possiblePositions.isNotEmpty()) { "Not enough free space for robots to place them all" }
 
         return possiblePositions.random(random)
     }
@@ -143,22 +143,35 @@ class Bout(
     private fun start(parameters: TournamentParameters): Bout {
         val random = Random(getSeed(parameters))
         parameters.randomSeed = random.nextLong()
-        val terrain = createFreshTerrain(parameters, random)
-        val effects = createEffects(parameters, terrain, random)
-        val robots = competitors.foldIndexed(mutableListOf<Robot>()) { player, list, competitor ->
-            if (competitor.isKilled()) deathnote.add(player) // make sure dead competitors stay dead!!!
-            val robot = Robot(
-                player,
-                createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
-                parameters.robotEnergyInitial,
-                parameters.robotEnergyMax,
-                parameters.robotHealthInitial,
-                parameters.robotShieldInitial,
-                parameters.robotShieldMax
-            )
-            list.add(robot)
-            list
-        }
+
+        var terrain: Grid<Terrain>
+        var effects: Grid<Effect>
+        var robots: List<Robot>
+        
+        do {
+            terrain = createFreshTerrain(parameters, random)
+            effects = createEffects(parameters, terrain, random)
+            robots = competitors.foldIndexed(mutableListOf()) { player, list, competitor ->
+                if (competitor.isKilled()) deathnote.add(player) // make sure dead competitors stay dead!!!
+                val robot = Robot(
+                    player,
+                    createUniquePosition(parameters.bounds, random, list.map(Robot::position), terrain, effects),
+                    parameters.robotEnergyInitial,
+                    parameters.robotEnergyMax,
+                    parameters.robotHealthInitial,
+                    parameters.robotShieldInitial,
+                    parameters.robotShieldMax
+                )
+                list.add(robot)
+                list
+            }
+
+            val costs = djiekstra(terrain, robots[0].position)
+            val allReachable = robots.drop(1).fold(1 as Int?) { memo, robot ->
+                memo?.let { aMemo -> costs[robot.position]?.let { it + aMemo } }
+            } != null
+
+        } while (!allReachable)
 
         arena = Arena(0, robots, parameters.bounds, terrain, effects)
 
@@ -166,6 +179,33 @@ class Bout(
 
         subject.onNext(Pair(this, listOf("Bout ($uuid) has started" )))
         return this
+    }
+
+    private fun djiekstra(terrain : Grid<Terrain>, pos : Position) : Grid<Int?> {
+
+        val seen : MutableList<Pair<Position,Int>> = mutableListOf()
+        val candidates : MutableList<Pair<Position,Int>> = mutableListOf(Pair(pos,0))
+
+        while (candidates.isNotEmpty()) {
+
+            val candidate = candidates.minBy { it.second }!!
+            val (currentPos,currentCosts) = candidate
+            candidates.remove(candidate)
+
+            val moves = listOf(*Direction.values())
+                .asSequence()
+                .mapNotNull { currentPos.move(it, terrain.bounds) }
+                .filter { aPos -> seen.find { it.first == aPos } == null }
+                .map { Pair(it,terrain[it].movementCost) }
+                .filter { it.second < 1000 }
+                .map { (aPos,cost) -> Pair(aPos,cost+currentCosts) }
+                .toList()
+
+            seen.addAll(moves)
+            candidates.addAll(moves)
+        }
+
+        return Grid(terrain.bounds) { aPos -> seen.find { it.first == aPos} ?.second  }
     }
 
     private fun sendMoveRequest(): Flow.Publisher<Pair<Detailed<Arena>, Move>> {
