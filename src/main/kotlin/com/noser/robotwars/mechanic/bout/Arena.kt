@@ -80,27 +80,27 @@ data class Arena(val activePlayer: Int,
     fun resolveRamming(player: Int, dir: Direction): Detailed<Arena> {
 
         val robot = findRobot(player)
-        return robot.ram(dir).map { withRobots(it) }.flatMap { arena ->
+        return robot.ram(dir).map { withRobots(it) }.flatMap { energyResolved ->
             val targetPos = robot.position.move(dir, bounds)
-            val targetRobot = targetPos?.let { arena.findRobot(it) }
+            val targetRobot = targetPos?.let { energyResolved.findRobot(it) }
             when {
-                targetPos == null   -> single(arena) { "$player rams the wall" }
-                targetRobot == null -> single(arena) { "$player doesn't hit anyone" }
+                targetPos == null   -> single(energyResolved) { "$player rams the wall" }
+                targetRobot == null -> single(energyResolved) { "$player doesn't hit anyone" }
                 else                -> {
                     val nextPos = targetPos.move(dir, bounds)
-                    val nextRobot = nextPos?.let { arena.findRobot(it) }
+                    val nextRobot = nextPos?.let { energyResolved.findRobot(it) }
                     val firstRamDamageDone = targetRobot.takeDamage(1)
 
                     when {
                         nextPos == null                  -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into the wall")
                             .flatMap { it.takeDamage(1) }
-                            .map { arena.withRobots(it) }
+                            .map { energyResolved.withRobots(it) }
 
                         terrain[nextPos] == Terrain.ROCK -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into a rock")
                             .flatMap { it.takeDamage(1) }
-                            .map { arena.withRobots(it) }
+                            .map { energyResolved.withRobots(it) }
 
                         nextRobot != null                -> firstRamDamageDone
                             .addDetail("${targetRobot.player} is rammed into ${nextRobot.player}")
@@ -113,10 +113,10 @@ data class Arena(val activePlayer: Int,
                                             .map { other -> arrayOf(afterRamIntoOther, other) }
                                     }
                             }
-                            .map { arena.withRobots(*it) }
+                            .map { energyResolved.withRobots(*it) }
 
                         else                             -> firstRamDamageDone
-                            .map { arena.withRobots(it) }
+                            .map { energyResolved.withRobots(it) }
                             .flatMap { it.moveTo(targetRobot.player, nextPos, 0) }
                     }
                 }
